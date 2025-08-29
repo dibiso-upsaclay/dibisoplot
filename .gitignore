@@ -1,0 +1,12 @@
+.venv
+
+.idea
+
+**/__pycache__/*
+**/.ipynb_checkpoints/*
+
+.~lock*
+
+dibisoplot.egg-info
+
+dist
