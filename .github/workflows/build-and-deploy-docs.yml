@@ -20,6 +20,9 @@ jobs:
           pip install -e . --config-settings editable_mode=compat
           pip install -r sphinx-doc/requirements.txt
 
+      - name: Install pandoc
+        run: sudo apt-get install pandoc
+
       - name: Build Documentation
         run: |
           cd sphinx-doc
