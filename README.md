@@ -7,6 +7,8 @@ The library contains the following submodules:
 
   - `biso`: plot data for the BiSO (Open-Science Report)
 
+Documentation: https://github.com/dibiso-upsaclay/dibisoplot
+
 Repository URL: https://github.com/dibiso-upsaclay/dibisoplot
 
 
