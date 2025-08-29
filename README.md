@@ -7,7 +7,7 @@ The library contains the following submodules:
   - `biso`: plot data for the BiSO (Open-Science Report)
 
 
-Homepage = https://pypi.org/project/dibisoplot/
+Homepage: https://pypi.org/project/dibisoplot/
 
 Documentation: https://dibiso-upsaclay.github.io/dibisoplot/
 
