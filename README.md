@@ -1,7 +1,6 @@
 # DiBISO plot
 
-A python library to plot bibliometric data made at the [DiBISO](https://www.bibliotheques.universite-paris-saclay.fr/en/department-libraries-information-and-open-science-dibiso-and-its-missions)
-(Department of Libraries, Information and Open Science) at the Université Paris-Saclay.
+A Python library for plotting bibliometric research data, developed at the [DiBISO](https://www.bibliotheques.universite-paris-saclay.fr/en/department-libraries-information-and-open-science-dibiso-and-its-missions).
 
 The library contains the following submodules:
 
@@ -16,4 +15,5 @@ Repository URL: https://github.com/dibiso-upsaclay/dibisoplot
 
 
 Romain THOMAS 2025  
-DiBISO - Université Paris-Saclay
+Department of Libraries, Information and Open Science (DiBISO)  
+Université Paris-Saclay
