@@ -41,5 +41,6 @@ version = { attr = "dibisoplot._version.__version__" }
 myModule = ["dibisoplot/biso/HAL_doc_types_names.toml"]
 
 [project.urls]
-Homepage = "https://gitlab.dsi.universite-paris-saclay.fr/dibiso1/dibisoplot"
-Documentation = "https://gitlab.dsi.universite-paris-saclay.fr/dibiso1/dibisoplot"
+Homepage = "https://pypi.org/project/dibisoplot/"
+Repository = "https://github.com/dibiso-upsaclay/dibisoplot"
+Documentation = "https://dibiso-upsaclay.github.io/dibisoplot/"
