@@ -3,15 +3,18 @@ Development
 
 .. _development:
 
+Installation
+============
+
 Prerequisites
-=============
+-------------
 Before you begin, ensure you have the following installed on your system:
 
 - Python 3.10 or higher
 - pip (Python package installer)
 
 Creating a virtual environment
-==============================
+------------------------------
 Creating a virtual environment is a best practice to isolate your project dependencies from the system-wide Python
 installation:
 
@@ -41,11 +44,11 @@ installation:
 
 
 Installing the dependencies
-===========================
+---------------------------
 With the virtual environment activated, you can now install the required dependencies.
 
 Install the package in editable mode (recommended)
---------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 When installing this package in editable mode, the dependencies (listed in ``pyproject.toml``) will be automatically
 installed. To install the package in editable mode run:
 
@@ -63,7 +66,7 @@ Installing the package in editable mode will allow you to import it when the vir
 path. This is especially useful when developing the package and building the documentation.
 
 Install only the dependencies
------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The package dependencies are listed in the ``requirements.txt`` file. Run the following command to install them:
 
 .. code-block:: bash
@@ -97,3 +100,16 @@ Once everything is installed, go in the directory ``sphinx-doc`` and run the fol
     make html
 
 If needed, you can run ``make clean`` to rebuild from scratch the documentation.
+
+
+Make a release
+==============
+
+1. Commit all changes to be included in the release
+2. Update the version file ``dibisoplot/_version.py`` with the new version identifier
+3. Commit
+4. Create a tag with Git: ``git tag -a vX.X.X -m "short description of changes"``
+5. Push changes: ``git push`` then ``git push --tags``
+6. On GitHub, go to the repository tags, and create a release from the new tag. You can put the same message as the one of the tag.
+7. Check that the release is successfully published on GitHub and PyPI.
+
