@@ -982,7 +982,7 @@ class CollaborationNames(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, lab: str, year: int | None = None, countries_to_exclude: list[str] | None = None, **kwargs):
         """
         Initialize the CollaborationNames class.
 
@@ -990,22 +990,25 @@ class CollaborationNames(Biso):
         :type lab: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
+        :param countries_to_exclude: List of countries to exclude from the data.
+            Use country code (e.g. 'fr' for France).
+        :type countries_to_exclude: list[str] | None, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
+        if countries_to_exclude is None:
+            countries_to_exclude = []
+        self.countries_to_exclude = countries_to_exclude
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self, countries_to_exclude: list[str] | None = None):
+    def fetch_data(self):
         """
         Fetch data about collaboration names from the HAL API only.
 
         This method queries the API to get the list of collaboration names and their counts.
         It processes the data to create a dictionary where keys are formatted structure names (including country flags)
         and values are their respective counts.
-
-        :param countries_to_exclude: List of countries to exclude from the data.
-        :type countries_to_exclude: list[str] | None, optional
         """
         def format_structure_name(struct_name: str, country_code: str) -> str:
             """
@@ -1023,54 +1026,65 @@ class CollaborationNames(Biso):
                 struct_name = struct_name[:75]+"... "
             # add country flag
             if country_code is not None:
-                struct_name += " " + flag.flag(country_code)
+                try:
+                    struct_name += " " + flag.flag(country_code)
+                except flag.UnknownCountryCode:
+                    struct_name += f" ({country_code})"
 
             return struct_name
 
         try:
-            if countries_to_exclude is None:
-                countries_to_exclude = []
-
             # Get count of each structure id in publications
             structs_facet_url=(
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
-                f"facet.limit={self.max_plotted_entities}"
+                f"facet.limit=10000"
             )
             structs_id_facets=requests.get(structs_facet_url).json()
             structs_id_facets = structs_id_facets.get('facet_counts', {}).get('facet_fields', {}).get('structId_i', [])
             if not structs_id_facets:
                 self.data_status = DataStatus.NO_DATA
-            else:
-                structs_id_count = {
-                    struct_id: count for struct_id, count in zip(structs_id_facets[::2], structs_id_facets[1::2])
-                }
+                return
+            structs_id_count = {
+                struct_id: count for struct_id, count in zip(structs_id_facets[::2], structs_id_facets[1::2])
+            }
 
-                struct_list = []
-                # get metadata of each structure (name + country code)
-                for i in range (0, len(structs_id_count), 500):
+            struct_list = []
+            # get metadata of each structure (name + country code)
+            for i in range (0, len(structs_id_count), 500):
+                if not self.countries_to_exclude:
                     facet_url = (
-                        f"https://api.archives-ouvertes.fr/ref/structure/?q=docid:"
-                        f"{" OR ".join(list(structs_id_count.keys())[i:i+500])}&fl=docid,label_s,country_s&rows=10000"
-                    )
-                    facets = requests.get(facet_url).json()
-                    facets_res = facets['response']['docs']
-                    # As HAL returns structures that were not requested, we remove non-requested structures + remove
-                    # structures not in countries to exclude
-                    struct_list[i:i+500] = [
-                        struct for struct in facets_res if struct['docid'] in list(structs_id_count.keys())[i:i+500]
-                                                           and struct['country_s'] not in countries_to_exclude
-                    ]
+                    f"https://api.archives-ouvertes.fr/ref/structure/?q="
+                    f"docid:({" OR ".join(list(structs_id_count.keys())[i:i+500])}) AND "
+                    f"fl=docid,label_s,country_s&rows=10000"
+                )
+                else:
+                    facet_url = (
+                    f"https://api.archives-ouvertes.fr/ref/structure/?q="
+                    f"docid:({" OR ".join(list(structs_id_count.keys())[i:i+500])}) AND "
+                    f"-country_s:{" OR ".join(self.countries_to_exclude)}&"
+                    f"fl=docid,label_s,country_s&rows=10000"
+                )
+                facets = requests.get(facet_url).json()
+                facets_res = facets['response']['docs']
+                # As HAL returns structures that were not requested, we remove non-requested structures + remove
+                # structures not in countries to exclude
+                struct_list[i:i+500] = [
+                    struct for struct in facets_res if struct['docid'] in list(structs_id_count.keys())[i:i+500]
+                                                       and struct.get('country_s') not in self.countries_to_exclude
+                ]
+            if not struct_list:
+                self.data_status = DataStatus.NO_DATA
+                return
 
-                self.data = {
-                    format_structure_name(struct['label_s'], struct.get('country_s', None)):
-                        structs_id_count[struct['docid']]
-                    for struct in struct_list
-                }
+            self.data = {
+                format_structure_name(struct['label_s'], struct.get('country_s', None)):
+                    structs_id_count[struct['docid']] for struct in struct_list
+            }
 
-                # sort values
-                self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
-                self.data_status = DataStatus.OK
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             self.data = None
@@ -1126,7 +1140,10 @@ class Conferences(Biso):
             if country_code == "(Unknown country)":
                 conf_name += " (Unknown country)"
             else:
-                conf_name += " " + flag.flag(country_code)
+                try:
+                    conf_name += " " + flag.flag(country_code)
+                except flag.UnknownCountryCode:
+                    conf_name += f" ({country_code})"
 
             return conf_name
 
