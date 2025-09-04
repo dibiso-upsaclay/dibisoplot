@@ -1123,7 +1123,10 @@ class Conferences(Biso):
             if len(conf_name) > 75:
                 conf_name = conf_name[:75]+"... "
             # add country flag
-            conf_name += " " + flag.flag(country_code)
+            if country_code == "(Unknown country)":
+                conf_name += " (Unknown country)"
+            else:
+                conf_name += " " + flag.flag(country_code)
 
             return conf_name
 
@@ -1139,8 +1142,10 @@ class Conferences(Biso):
                 self.data_status = DataStatus.NO_DATA
             else:
                 conferences_list = sorted(conferences_list, key=lambda conf: conf['count'])
-                self.data = {format_conference_name(conf['value'], conf['pivot'][0]['value']): conf['count']
-                             for conf in conferences_list}
+                self.data = {format_conference_name(
+                    conf.get('value', "Unknown conference"),
+                    conf.get('pivot', [{}])[0].get('value', "(Unknown country)")
+                ): conf.get('count', 0) for conf in conferences_list}
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
