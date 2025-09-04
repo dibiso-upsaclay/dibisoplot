@@ -1,3 +1,4 @@
+from enum import Enum
 from io import BytesIO
 from typing import Any
 import math
@@ -21,6 +22,14 @@ import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
 
+class DataStatus(Enum):
+    """Status of the data."""
+    NOT_FETCHED = 0
+    OK = 1
+    NO_DATA = 2
+    ERROR = 3
+
+
 hal_doc_types_names_mapping = tomllib.load(BytesIO(pkgutil.get_data(__name__, "HAL_doc_types_names.toml")))
 
 
@@ -31,6 +40,49 @@ def get_hal_doc_type_name(name):
         warnings.warn(f"Unknown HAL doc type name: {name}. Using raw name.")
         parts = name.split('_')
         return ' '.join([parts[0].capitalize()] + [part.lower() for part in parts[1:]])
+
+
+def get_empty_plot_with_message(message: str) -> go.Figure:
+    """Create an empty plot with a message."""
+    fig = go.Figure()
+    fig.add_annotation(text=message, showarrow=False)
+    fig.update_layout(showlegend=False, template="simple_white")
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    return fig
+
+
+def get_no_data_plot() -> go.Figure:
+    """Create the error plot."""
+    return get_empty_plot_with_message("No data")
+
+
+def get_error_plot() -> go.Figure:
+    """Create the error plot."""
+    return get_empty_plot_with_message("Error while making the plot")
+
+
+def get_empty_latex_with_message(message: str) -> str:
+    """Create an empty plot with a message."""
+    latex_str = """
+\\setlength{\\fboxsep}{10pt}
+\\fbox{
+    \\parbox{\\textwidth}{
+        \\centering """+message+"""
+    }
+}
+"""
+    return latex_str
+
+
+def get_no_data_latex() -> str:
+    """Create the error LaTeX code."""
+    return get_empty_latex_with_message("No data")
+
+
+def get_error_latex() -> str:
+    """Create the error LaTeX code."""
+    return get_empty_latex_with_message("Error while making the table")
 
 
 # Calculate plot bar width depending on the number of bars on the plot, based on a linear interpolation of two examples
@@ -94,7 +146,8 @@ def dataframe_to_longtable(
     :param max_plotted_entities: Maximum number of entities to show in the table. If None, show all entities in the
         table.
     :type max_plotted_entities: int | None, optional
-    :param output_file: Path to file where the LaTeX code will be saved. If None, code is not saved to file.
+    :param output_file: DEPRECATED AND WILL BE REMOVED IN A FUTURE VERSION.
+        Path to file where the LaTeX code will be saved. If None, code is not saved to file.
     :type output_file: str | None, optional
     :return: LaTeX code for the longtable (without document headers).
     :rtype: str
@@ -128,6 +181,9 @@ def dataframe_to_longtable(
         for char, escaped in replacements.items():
             s = s.replace(char, escaped)
         return s
+
+    if output_file is not None:
+        warnings.warn("Usage of output_file is deprecated and will be removed in a future version.", DeprecationWarning)
 
     if table_df.empty:
         latex_lines = ["NO DATA"]
@@ -327,6 +383,7 @@ class Biso:
         self.width = width
 
         self.data = None
+        self.data_status = DataStatus.NOT_FETCHED
 
 
     def get_all_dois_with_cursor(self):
@@ -409,8 +466,12 @@ class Biso:
         :return: The plotly figure.
         :rtype: go.Figure
         """
-        if self.data is None:
+        if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data(*args, **kwargs)
+        if self.data_status == DataStatus.NO_DATA:
+            return get_no_data_plot()
+        if self.data_status == DataStatus.ERROR:
+            return get_error_plot()
 
         # keep only the first max_plotted_entities items in the dictionary
         self.data =  dict(list(self.data.items())[-self.max_plotted_entities:])
@@ -479,14 +540,25 @@ class AnrProjects(Biso):
         The data is stored in the `data` attribute as a dictionary where keys are ANR project acronyms
         and values are their respective counts.
         """
-        facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}"
-            f"&wt=json&rows=0&facet=true&facet.field=anrProjectAcronym_s&facet.limit={self.max_plotted_entities}"
-        )
-        facets=requests.get(facet_url).json()
-        anr_projects_list=facets['facet_counts']['facet_fields']['anrProjectAcronym_s']
-        self.data = {anr_projects_list[i]: anr_projects_list[i + 1] for i in range(0, len(anr_projects_list), 2)
-                     if anr_projects_list[i + 1] != 0}
+        try:
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}"
+                f"&wt=json&rows=0&facet=true&facet.field=anrProjectAcronym_s&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            anr_projects_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('anrProjectAcronym_s', [])
+            self.data = {anr_projects_list[i]: anr_projects_list[i + 1] for i in range(0, len(anr_projects_list), 2)
+                         if anr_projects_list[i + 1] != 0}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
+
 
 
 class Chapters(Biso):
@@ -519,31 +591,42 @@ class Chapters(Biso):
         The data is stored in the `data` attribute as a pandas DataFrame with columns for title (`title_s`),
         book title (`bookTitle_s`), and publisher (`publisher_s`).
         """
-        url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=*:*&fq=docType_s:COUV&"
-            f"fq=producedDateY_i:{self.year}&rows={self.max_plotted_entities}&wt=json&indent=true&"
-            f"fl=title_s,bookTitle_s,publisher_s"
-        )
-        chapters=requests.get(url).json()['response']['docs']
+        try:
+            url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=*:*&fq=docType_s:COUV&"
+                f"fq=producedDateY_i:{self.year}&rows={self.max_plotted_entities}&wt=json&indent=true&"
+                f"fl=title_s,bookTitle_s,publisher_s"
+            )
+            chapters = requests.get(url).json()
+            chapters = chapters.get('response', {}).get('docs', [])
 
-        for i in range(len(chapters)):
-            if 'title_s' not in chapters[i].keys():
-                chapters[i]['title_s'] = ""
+            if not chapters:
+                self.data_status = DataStatus.NO_DATA
             else:
-                chapters[i]['title_s'] = ' ; '.join(chapters[i]['title_s'])
+                for i in range(len(chapters)):
+                    if 'title_s' not in chapters[i].keys():
+                        chapters[i]['title_s'] = ""
+                    else:
+                        chapters[i]['title_s'] = ' ; '.join(chapters[i]['title_s'])
 
-            if 'publisher_s' not in chapters[i].keys():
-                chapters[i]['publisher_s'] = ""
-            else:
-                chapters[i]['publisher_s'] = ' ; '.join(chapters[i]['publisher_s'])
+                    if 'publisher_s' not in chapters[i].keys():
+                        chapters[i]['publisher_s'] = ""
+                    else:
+                        chapters[i]['publisher_s'] = ' ; '.join(chapters[i]['publisher_s'])
 
-        self.data = pd.DataFrame.from_records(chapters)
+                self.data = pd.DataFrame.from_records(chapters)
 
-        self.data = self.data.rename(columns={
-            "title_s": "Titre du chapitre",
-            "bookTitle_s": "Titre du livre",
-            "publisher_s": "Éditeur",
-        })
+                self.data = self.data.rename(columns={
+                    "title_s": "Titre du chapitre",
+                    "bookTitle_s": "Titre du livre",
+                    "publisher_s": "Éditeur",
+                })
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 
     def get_figure(self, output_file: str | None = None, *args, **kwargs) -> str:
@@ -557,8 +640,12 @@ class Chapters(Biso):
         :return: LaTeX code for the longtable representing the book chapters data.
         :rtype: str
         """
-        if self.data is None:
-            self.fetch_data(*args, **kwargs)
+        if self.data_status == DataStatus.NOT_FETCHED:
+            self.fetch_data()
+        if self.data_status == DataStatus.NO_DATA:
+            return get_no_data_latex()
+        if self.data_status == DataStatus.ERROR:
+            return get_error_latex()
 
         latex_table = dataframe_to_longtable(
             self.data,
@@ -683,72 +770,90 @@ class CollaborationMap(Biso):
         This method queries the API to get the list of collaborations and their metadata.
         It processes the data to create a DataFrame with latitude, longitude, and other relevant information.
         """
-        # get the list of DOI from HAL:
-        article_dois = self.get_all_dois_with_cursor()
+        try:
+            # get the list of DOI from HAL:
+            article_dois = self.get_all_dois_with_cursor()
 
-        # Download articles metadata from OpenAlex:
-        print(f"Downloading the metadata for {len(article_dois)} DOIs from OpenAlex...")
-        works = WorksData().get_multiple_works_from_doi(article_dois, return_dataframe=False)
-        works = [work for work in works if work is not None]
-        print(f"{len(works)} works retrieved successfully from OpenAlex out of {len(article_dois)}")
+            # Download articles metadata from OpenAlex:
+            print(f"Downloading the metadata for {len(article_dois)} DOIs from OpenAlex...")
+            works = WorksData().get_multiple_works_from_doi(article_dois, return_dataframe=False)
+            works = [work for work in works if work is not None]
+            print(f"{len(works)} works retrieved successfully from OpenAlex out of {len(article_dois)}")
 
-        # Download institution metadata from OpenAlex:
-        # get the list of institutions who collaborated per work:
-        works_institutions = [
-            list(set([institution['id'] for author in work['authorships'] for institution in author['institutions']]))
-            for work in works
-        ]
-        # list of the institutions we collaborated with
-        institutions_id = set(list([institution for institutions in works_institutions for institution in institutions
-                                    if institution not in self.institutions_to_exclude]))
-        print(f"{len(institutions_id)} unique institutions with which we collaborated on works")
-        # remove the https://openalex.org/ at the beginning
-        institutions_id = [institution_id[21:] for institution_id in institutions_id]
-        # create dictionaries with the institution id as key and lon, lat and name as item
-        institutions_name = {}
-        institutions_lat = {}
-        institutions_lon = {}
-        institutions_country = {}
-        institutions_count = {}
-        # count the number of collaboration per institutions:
-        # works_institutions contains the institutions we collaborated per work, so we
-        # can count on how many works we collaborated with each institution
-        all_institutions_count = Counter(list(
-            [institution for institutions in works_institutions for institution in institutions]
-        ))
-        institutions = InstitutionsPlot().get_multiple_entities_from_id(institutions_id, return_dataframe=False)
-        for institution in institutions:
-            if institution['geo']['country'] not in self.countries_to_ignore:
-                institutions_name[institution['id']] = institution['display_name']
-                institutions_lat[institution['id']] = institution['geo']['latitude']
-                institutions_lon[institution['id']] = institution['geo']['longitude']
-                institutions_country[institution['id']] = institution['geo']['country']
-                institutions_count[institution['id']] = all_institutions_count[institution['id']]
+            # Download institution metadata from OpenAlex:
+            # get the list of institutions who collaborated per work:
+            works_institutions = [
+                list(set([
+                    institution['id'] for author in work['authorships'] for institution in author['institutions']
+                ]))
+                for work in works
+            ]
+            # list of the institutions we collaborated with
+            institutions_id = set(list([
+                institution for institutions in works_institutions for institution in institutions
+                if institution not in self.institutions_to_exclude
+            ]))
+            print(f"{len(institutions_id)} unique institutions with which we collaborated on works")
+            # remove the https://openalex.org/ at the beginning
+            institutions_id = [institution_id[21:] for institution_id in institutions_id]
+            # create dictionaries with the institution id as key and lon, lat and name as item
+            institutions_name = {}
+            institutions_lat = {}
+            institutions_lon = {}
+            institutions_country = {}
+            institutions_count = {}
+            # count the number of collaboration per institutions:
+            # works_institutions contains the institutions we collaborated per work, so we
+            # can count on how many works we collaborated with each institution
+            all_institutions_count = Counter(list(
+                [institution for institutions in works_institutions for institution in institutions]
+            ))
+            if not institutions_id:
+                institutions = []
+            else:
+                institutions = InstitutionsPlot().get_multiple_entities_from_id(institutions_id, return_dataframe=False)
+            for institution in institutions:
+                if institution['geo']['country'] not in self.countries_to_ignore:
+                    institutions_name[institution['id']] = institution['display_name']
+                    institutions_lat[institution['id']] = institution['geo']['latitude']
+                    institutions_lon[institution['id']] = institution['geo']['longitude']
+                    institutions_country[institution['id']] = institution['geo']['country']
+                    institutions_count[institution['id']] = all_institutions_count[institution['id']]
 
 
-        # Create DataFrame to plot:
-        institutions_name_s = pd.Series(dict(institutions_name), name='name')
-        institutions_lat_s = pd.Series(dict(institutions_lat), name='lat')
-        institutions_lon_s = pd.Series(dict(institutions_lon), name='lon')
-        institutions_country_s = pd.Series(dict(institutions_country), name='country')
-        institutions_count_s = pd.Series(dict(institutions_count), name='count')
-        self.data = pd.concat([institutions_name_s, institutions_lat_s, institutions_lon_s, institutions_country_s,
-                               institutions_count_s], axis=1)
+            # Create DataFrame to plot:
+            institutions_name_s = pd.Series(dict(institutions_name), name='name')
+            institutions_lat_s = pd.Series(dict(institutions_lat), name='lat')
+            institutions_lon_s = pd.Series(dict(institutions_lon), name='lon')
+            institutions_country_s = pd.Series(dict(institutions_country), name='country')
+            institutions_count_s = pd.Series(dict(institutions_count), name='count')
+            self.data = pd.concat([institutions_name_s, institutions_lat_s, institutions_lon_s,
+                                   institutions_country_s, institutions_count_s], axis=1)
 
-        # calculate stats:
-        collaborations_nb = int(self.data['count'].sum())
-        institutions_nb = len(self.data)
-        countries_nb = len(self.data['country'].unique())
+            # calculate stats:
+            collaborations_nb = int(self.data['count'].sum())
+            institutions_nb = len(self.data)
+            countries_nb = len(self.data['country'].unique())
 
-        print(f"{len(self.data)} unique institutions to plot")
+            print(f"{len(self.data)} unique institutions to plot")
 
-        stats = {
-            'collaborations_nb': collaborations_nb,
-            'institutions_nb': institutions_nb,
-            'countries_nb': countries_nb
-        }
+            stats = {
+                'collaborations_nb': collaborations_nb,
+                'institutions_nb': institutions_nb,
+                'countries_nb': countries_nb
+            }
 
-        return stats
+            return stats
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            stats = {
+                'collaborations_nb': "Error",
+                'institutions_nb': "Error",
+                'countries_nb': "Error"
+            }
+            return stats
 
 
 
@@ -761,8 +866,11 @@ class CollaborationMap(Biso):
         :return: The plotly figure.
         :rtype: go.Figure
         """
-        if self.data is None:
+        if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
+        # If no data, we plot the map as usual
+        if self.data_status == DataStatus.ERROR:
+            return get_error_plot()
 
         countries_land_gray_color = "#dadada"
         countries_lines_color = "Black"
@@ -784,11 +892,11 @@ class CollaborationMap(Biso):
                 (self.data['lon'] <= lonaxis_range[1])
             ]
             count_max = filtered_data['count'].max() if not filtered_data.empty else 0
-            count_sum = filtered_data['count'].sum() if not filtered_data.empty else 0
+            count_sum = filtered_data['count'].sum() if not filtered_data.empty else np.array([0])
         else:
             # Use all data if no range is specified
             count_max = self.data['count'].max() if not self.data.empty else 0
-            count_sum = self.data['count'].sum() if not self.data.empty else 0
+            count_sum = self.data['count'].sum() if not self.data.empty else np.array([0])
 
         # example values: 0.05 for 10 entities, 0.5 for 1000 entities
         # calculate markers_size_ref to auto-adjust based on count_max and count_sum
@@ -798,16 +906,23 @@ class CollaborationMap(Biso):
         # set a ln scale
         self.data['size'] = np.log(self.data['count'] + 1)
 
-        fig = px.scatter_geo(
-            self.data,
-            lat='lat',
-            lon='lon',
-            size='size',
-            custom_data=['name', 'country', 'count'],
-            height=self.default_height_zoom if self.map_zoom and self.has_default_width_and_height else self.height,
-            width=self.default_width_zoom if self.map_zoom and self.has_default_width_and_height else self.width,
-            #color_discrete_sequence=["#eb7125"]
-        )
+        if self.data.empty:
+            fig = px.scatter_geo(
+                height=self.default_height_zoom if self.map_zoom and self.has_default_width_and_height else self.height,
+                width=self.default_width_zoom if self.map_zoom and self.has_default_width_and_height else self.width,
+                #color_discrete_sequence=["#eb7125"]
+            )
+        else:
+            fig = px.scatter_geo(
+                self.data,
+                lat='lat',
+                lon='lon',
+                size='size',
+                custom_data=['name', 'country', 'count'],
+                height=self.default_height_zoom if self.map_zoom and self.has_default_width_and_height else self.height,
+                width=self.default_width_zoom if self.map_zoom and self.has_default_width_and_height else self.width,
+                #color_discrete_sequence=["#eb7125"]
+            )
         # add the hover
         hover_template = [
                 "%{customdata[0]}",
@@ -912,44 +1027,55 @@ class CollaborationNames(Biso):
 
             return struct_name
 
-        if countries_to_exclude is None:
-            countries_to_exclude = []
+        try:
+            if countries_to_exclude is None:
+                countries_to_exclude = []
 
-        # Get count of each structure id in publications
-        structs_facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
-            f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
-            f"facet.limit={self.max_plotted_entities}"
-        )
-        structs_id_facets=requests.get(structs_facet_url).json()
-        structs_id_facets = structs_id_facets['facet_counts']['facet_fields']['structId_i']
-        structs_id_count = {
-            struct_id: count for struct_id, count in zip(structs_id_facets[::2], structs_id_facets[1::2])
-        }
-
-        struct_list = []
-        # get metadata of each structure (name + country code)
-        for i in range (0, len(structs_id_count), 500):
-            facet_url = (
-                f"https://api.archives-ouvertes.fr/ref/structure/?q=docid:"
-                f"{" OR ".join(list(structs_id_count.keys())[i:i+500])}&fl=docid,label_s,country_s&rows=10000"
+            # Get count of each structure id in publications
+            structs_facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
+                f"facet.limit={self.max_plotted_entities}"
             )
-            facets = requests.get(facet_url).json()
-            facets_res = facets['response']['docs']
-            # As HAL returns structures that were not requested, we remove non-requested structures + remove structures
-            # not in countries to exclude
-            struct_list[i:i+500] = [
-                struct for struct in facets_res if struct['docid'] in list(structs_id_count.keys())[i:i+500]
-                                                   and struct['country_s'] not in countries_to_exclude
-            ]
+            structs_id_facets=requests.get(structs_facet_url).json()
+            structs_id_facets = structs_id_facets.get('facet_counts', {}).get('facet_fields', {}).get('structId_i', [])
+            if not structs_id_facets:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                structs_id_count = {
+                    struct_id: count for struct_id, count in zip(structs_id_facets[::2], structs_id_facets[1::2])
+                }
 
-        self.data = {
-            format_structure_name(struct['label_s'], struct.get('country_s', None)): structs_id_count[struct['docid']]
-            for struct in struct_list
-        }
+                struct_list = []
+                # get metadata of each structure (name + country code)
+                for i in range (0, len(structs_id_count), 500):
+                    facet_url = (
+                        f"https://api.archives-ouvertes.fr/ref/structure/?q=docid:"
+                        f"{" OR ".join(list(structs_id_count.keys())[i:i+500])}&fl=docid,label_s,country_s&rows=10000"
+                    )
+                    facets = requests.get(facet_url).json()
+                    facets_res = facets['response']['docs']
+                    # As HAL returns structures that were not requested, we remove non-requested structures + remove
+                    # structures not in countries to exclude
+                    struct_list[i:i+500] = [
+                        struct for struct in facets_res if struct['docid'] in list(structs_id_count.keys())[i:i+500]
+                                                           and struct['country_s'] not in countries_to_exclude
+                    ]
 
-        # sort values
-        self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+                self.data = {
+                    format_structure_name(struct['label_s'], struct.get('country_s', None)):
+                        structs_id_count[struct['docid']]
+                    for struct in struct_list
+                }
+
+                # sort values
+                self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 
 class Conferences(Biso):
@@ -1001,16 +1127,26 @@ class Conferences(Biso):
 
             return conf_name
 
-        facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
-            f"&facet=true&facet.pivot=conferenceTitle_s,country_s&facet.limit={self.max_plotted_entities}"
-        )
-        facets=requests.get(facet_url).json()
-        conferences_list=facets['facet_counts']['facet_pivot']['conferenceTitle_s,country_s']
-        conferences_list = sorted(conferences_list, key=lambda conf: conf['count'])
-        self.data = {format_conference_name(conf['value'], conf['pivot'][0]['value']): conf['count']
-                     for conf in conferences_list}
-
+        try:
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
+                f"&facet=true&facet.pivot=conferenceTitle_s,country_s&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            conferences_list = facets.get('facet_counts', {}).get('facet_pivot', {}).get(
+                'conferenceTitle_s,country_s', [])
+            if not conferences_list:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                conferences_list = sorted(conferences_list, key=lambda conf: conf['count'])
+                self.data = {format_conference_name(conf['value'], conf['pivot'][0]['value']): conf['count']
+                             for conf in conferences_list}
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 class EuropeanProjects(Biso):
     """
@@ -1043,14 +1179,24 @@ class EuropeanProjects(Biso):
         The data is stored in the `data` attribute as a dictionary where keys are European project acronyms
         and values are their respective counts.
         """
-        facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
-            f"&facet=true&facet.field=europeanProjectAcronym_s&facet.limit={self.max_plotted_entities}"
-        )
-        facets=requests.get(facet_url).json()
-        eu_projects_list=facets['facet_counts']['facet_fields']['europeanProjectAcronym_s']
-        self.data = {eu_projects_list[i]: eu_projects_list[i + 1] for i in range(0, len(eu_projects_list), 2)
-                     if eu_projects_list[i + 1] != 0}
+        try:
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
+                f"&facet=true&facet.field=europeanProjectAcronym_s&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            eu_projects_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('europeanProjectAcronym_s', [])
+            self.data = {eu_projects_list[i]: eu_projects_list[i + 1] for i in range(0, len(eu_projects_list), 2)
+                         if eu_projects_list[i + 1] != 0}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 
 class Journals(Biso):
@@ -1112,8 +1258,12 @@ class Journals(Biso):
         :return: LaTeX code for the longtable representing the journals data.
         :rtype: str
         """
-        if self.data is None:
-            self.fetch_data(*args, **kwargs)
+        if self.data_status == DataStatus.NOT_FETCHED:
+            self.fetch_data()
+        if self.data_status == DataStatus.NO_DATA:
+            return get_no_data_latex()
+        if self.data_status == DataStatus.ERROR:
+            return get_error_latex()
 
         journals = {}
 
@@ -1140,7 +1290,9 @@ class Journals(Biso):
                     if len(apcs) > 0:
                         apcs += ", \\\\ "
                     apcs += work['apc_paid.value'].replace(",", " ") + " " + work['apc_paid.currency']
-            oa_colors = ", \\\\ " .join([f"{count} {color}" for color, count in pd.Index(oa_colors).value_counts().items()])
+            oa_colors = ", \\\\ " .join(
+                [f"{count} {color}" for color, count in pd.Index(oa_colors).value_counts().items()]
+            )
 
             journals_table.append(
                 {
@@ -1232,54 +1384,67 @@ class OpenAccessWorks(Biso):
         This method queries the API to get the count of open access works for each year in the specified year range.
         The data is stored in the `data` attribute as a pandas DataFrame with counts for different open access statuses.
         """
-        self.data=pd.DataFrame(
-            columns=['ti_dans_hal', 'oa_hors_hal', 'non_oa'],
-            index=range(self.year_range[0], self.year_range[1] + 1)
-        )
-        facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
-            f"{self.year_range[1]}] AND submitType_s:(file OR annex) AND docType_s:(ART OR COMM)&wt=json&"
-            f"rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
-        )
-        facets=requests.get(facet_url).json()
-        ti_numbers=facets['facet_counts']['facet_fields']['publicationDateY_i']
-        for ind, i in enumerate(ti_numbers):
-            if isinstance(i,str):
-                self.data.loc[int(i),'ti_dans_hal']=ti_numbers[ind+1]
-            else:
-                pass
+        try:
+            self.data=pd.DataFrame(
+                columns=['ti_dans_hal', 'oa_hors_hal', 'non_oa'],
+                index=range(self.year_range[0], self.year_range[1] + 1)
+            )
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"{self.year_range[1]}] AND submitType_s:(file OR annex) AND docType_s:(ART OR COMM)&wt=json&"
+                f"rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            ti_numbers=facets.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            for ind, i in enumerate(ti_numbers):
+                if isinstance(i,str):
+                    self.data.loc[int(i),'ti_dans_hal']=ti_numbers[ind+1]
+                else:
+                    pass
 
-        oa_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
-            f"{self.year_range[1]}] AND openAccess_bool:true AND submitType_s:notice AND docType_s:(ART OR COMM)&"
-            f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
-        )
-        oa=requests.get(oa_url).json()
-        oa_numbers=oa['facet_counts']['facet_fields']['publicationDateY_i']
-        for ind, i in enumerate(oa_numbers):
-            if isinstance(i,str):
-                self.data.loc[int(i),'oa_hors_hal']=oa_numbers[ind+1]
-            else:
-                pass
+            oa_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"{self.year_range[1]}] AND openAccess_bool:true AND submitType_s:notice AND docType_s:(ART OR COMM)&"
+                f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
+            )
+            oa=requests.get(oa_url).json()
+            oa_numbers=oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            for ind, i in enumerate(oa_numbers):
+                if isinstance(i,str):
+                    self.data.loc[int(i),'oa_hors_hal']=oa_numbers[ind+1]
+                else:
+                    pass
 
-        non_oa_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
-            f"{self.year_range[1]}] AND openAccess_bool:false AND submitType_s:notice  AND docType_s:(ART OR COMM)&"
-            f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
-        )
-        non_oa=requests.get(non_oa_url).json()
-        non_oa_numbers=non_oa['facet_counts']['facet_fields']['publicationDateY_i']
-        for ind, i in enumerate(non_oa_numbers):
-            if isinstance(i,str):
-                self.data.loc[int(i),'non_oa']=int(non_oa_numbers[ind+1])
+            non_oa_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"{self.year_range[1]}] AND openAccess_bool:false AND submitType_s:notice  AND docType_s:(ART OR COMM)&"
+                f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
+            )
+            non_oa=requests.get(non_oa_url).json()
+            non_oa_numbers=non_oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            for ind, i in enumerate(non_oa_numbers):
+                if isinstance(i,str):
+                    self.data.loc[int(i),'non_oa']=int(non_oa_numbers[ind+1])
+                else:
+                    pass
+            self.data = self.data.infer_objects().fillna(0)
+            if self.data.sum().sum() == 0:
+                self.data_status = DataStatus.NO_DATA
             else:
-                pass
-        self.data = self.data.infer_objects().fillna(0)
+                self.data_status = DataStatus.OK
 
-        stats = {
-            'oa_works_period': f"{self.year_range[0]} - {self.year_range[1]}",
-        }
-        return stats
+            stats = {
+                'oa_works_period': f"{self.year_range[0]} - {self.year_range[1]}",
+            }
+            return stats
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            stats = {
+                'oa_works_period': f"{self.year_range[0]} - {self.year_range[1]}",
+            }
+            return stats
 
 
     def get_figure(
@@ -1298,8 +1463,12 @@ class OpenAccessWorks(Biso):
         :return: The plotly figure.
         :rtype: go.Figure
         """
-        if self.data is None:
+        if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
+        if self.data_status == DataStatus.NO_DATA:
+            return get_no_data_plot()
+        if self.data_status == DataStatus.ERROR:
+            return get_error_plot()
 
         years=tuple(self.data.index)
 
@@ -1337,9 +1506,10 @@ class OpenAccessWorks(Biso):
 
         # invisible right bars with text
         for i, (oa_type, count) in enumerate(oa_values.items()):
+            count_to_plot = [str(int(c)) if c > 0 else "" for c in count]
             fig.add_trace(go.Bar(
                 x=years,
-                y=count,
+                y=count_to_plot,
                 name=oa_type,
                 marker_color="rgba(0,0,0,0)",
                 text=count,
@@ -1400,11 +1570,22 @@ class WorksType(Biso):
         It processes the data to create a dictionary where keys are work type names and values are their respective
         counts.
         """
-        facet_url=(
-            f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} &"
-            f"wt=json&rows=0&facet=true&facet.pivot=docType_s&facet.limit={self.max_plotted_entities}"
-        )
-        facets=requests.get(facet_url).json()
-        document_types_list=facets['facet_counts']['facet_pivot']['docType_s']
-
-        self.data = {get_hal_doc_type_name(doc_type['value']): doc_type['count'] for doc_type in document_types_list}
+        try:
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} &"
+                f"wt=json&rows=0&facet=true&facet.pivot=docType_s&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            document_types_list=facets.get('facet_counts', {}).get('facet_pivot', {}).get('docType_s', [])
+            if not document_types_list:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data = {
+                    get_hal_doc_type_name(doc_type['value']): doc_type['count'] for doc_type in document_types_list
+                }
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
