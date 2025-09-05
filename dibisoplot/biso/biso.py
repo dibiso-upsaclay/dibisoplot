@@ -1149,8 +1149,9 @@ class Conferences(Biso):
 
         try:
             facet_url=(
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
-                f"&facet=true&facet.pivot=conferenceTitle_s,country_s&facet.limit={self.max_plotted_entities}"
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"docType_s:(COMM)&wt=json&rows=0&facet=true&facet.pivot=conferenceTitle_s,country_s&"
+                f"facet.limit={self.max_plotted_entities}"
             )
             facets=requests.get(facet_url).json()
             conferences_list = facets.get('facet_counts', {}).get('facet_pivot', {}).get(
