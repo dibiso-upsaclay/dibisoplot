@@ -494,6 +494,7 @@ class Biso:
             text=list(self.data.values()),
             textposition=textposition,
             textangle=0,
+            cliponaxis=False,
             width=get_bar_width(len(self.data.keys())),
         ))
 
@@ -1523,7 +1524,8 @@ class OpenAccessWorks(Biso):
                 name=oa_type,
                 marker_color=self.colors[oa_type],
                 insidetextanchor="middle",
-                textangle=0,  # Prevent text from rotating
+                textangle=0,
+                cliponaxis=False,
                 offsetgroup=0,
             ))
 
@@ -1539,7 +1541,8 @@ class OpenAccessWorks(Biso):
                 textposition="inside",
                 textfont_color="black",
                 insidetextanchor="middle",
-                textangle=0,  # Prevent text from rotating
+                textangle=0,
+                cliponaxis=False,
                 offsetgroup=1,
                 showlegend=False,
                 hoverinfo="skip",
