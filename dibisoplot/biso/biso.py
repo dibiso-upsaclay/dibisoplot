@@ -665,12 +665,18 @@ class CollaborationMap(Biso):
     """
     A class to fetch and plot data about collaborations on a map.
 
+    :cvar default_countries_land_color: Default color for the land in the map.
+    :cvar default_countries_lines_color: Default color for the lines in the map.
+    :cvar default_frame_color: Default color for the frame of the map.
     :cvar default_height: Default height for the map.
     :cvar default_width: Default width for the map.
     :cvar default_zoom_lat_range: Default latitude range for zoomed map.
     :cvar default_zoom_lon_range: Default longitude range for zoomed map.
     """
 
+    default_countries_land_color = "#eaeaea"
+    default_countries_lines_color = "#999999"
+    default_frame_color = default_countries_lines_color
     # override Biso class default height and width
     default_height = 500
     default_width = 1200
@@ -683,7 +689,10 @@ class CollaborationMap(Biso):
             self,
             lab: str,
             year: int | None = None,
+            countries_land_color: str | None = None,
+            countries_lines_color: str | None = None,
             countries_to_ignore: list[str] | None = None,
+            frame_color: str | None = None,
             height: int | None = None,
             institutions_to_exclude: list[str] | None = None,
             map_zoom: bool = False,
@@ -701,9 +710,15 @@ class CollaborationMap(Biso):
         :param lab: The HAL collection identifier. This usually refers to the lab acronym.
         :type lab: str
         :param year: The year for which to fetch data. If None, uses the current year.
-        :type year: int | none, optional
+        :type year: int | None, optional
+        :param countries_land_color: Color of the land in the map.
+        :type countries_land_color: str | None, optional
+        :param countries_lines_color: Color of the country lines in the map.
+        :type countries_lines_color: str | None, optional
         :param countries_to_ignore: List of countries to ignore in the data.
         :type countries_to_ignore: list[str] | None, optional
+        :param frame_color: Color of the frame of the plot.
+        :type frame_color: str | None, optional
         :param height: Height of the plot.
         :type height: int | None, optional
         :param institutions_to_exclude: List of institutions to exclude from the data.
@@ -733,9 +748,22 @@ class CollaborationMap(Biso):
             self.has_default_width_and_height = True
         else:
             self.has_default_width_and_height = False
+        if countries_land_color is None:
+            self.countries_land_color = self.default_countries_land_color
+        else:
+            self.countries_land_color = countries_land_color
+        if countries_lines_color is None:
+            self.countries_lines_color = self.default_countries_lines_color
+        else:
+            self.countries_lines_color = countries_lines_color
         if countries_to_ignore is None:
-            countries_to_ignore = []
-        self.countries_to_ignore = countries_to_ignore
+            self.countries_to_ignore = []
+        else:
+            self.countries_to_ignore = countries_to_ignore
+        if frame_color is None:
+            self.frame_color = self.default_frame_color
+        else:
+            self.frame_color = frame_color
         if height is None:
             height = self.default_height
         if institutions_to_exclude is None:
@@ -873,9 +901,6 @@ class CollaborationMap(Biso):
         if self.data_status == DataStatus.ERROR:
             return get_error_plot()
 
-        countries_land_gray_color = "#dadada"
-        countries_lines_color = "Black"
-
         if self.map_zoom:
             lataxis_range = self.zoom_lat_range if self.zoom_lat_range is None else self.zoom_lat_range
             lonaxis_range = self.zoom_lon_range if self.zoom_lon_range is None else self.zoom_lon_range
@@ -960,9 +985,11 @@ class CollaborationMap(Biso):
             projection_type="natural earth",
             showcountries=True,
             showland=True,
-            countrycolor=countries_lines_color,
-            landcolor=countries_land_gray_color,
+            countrycolor=self.countries_lines_color,
+            landcolor=self.countries_land_color,
             showframe=True,
+            countrywidth=0.5,
+            framecolor=self.frame_color,
         )
 
         if self.map_zoom:
