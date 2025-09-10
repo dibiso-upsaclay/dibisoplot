@@ -859,6 +859,11 @@ class CollaborationMap(Biso):
                 'countries_nb': countries_nb
             }
 
+            if collaborations_nb == 0:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+
             return stats
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
