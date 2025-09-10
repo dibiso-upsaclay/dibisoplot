@@ -121,7 +121,6 @@ def dataframe_to_longtable(
         classic_horizontal_lines: bool = False,
         minimal_horizontal_lines: bool = True,
         max_plotted_entities: int | None = None,
-        output_file: str | None = None
 ) -> str:
     """
     Convert a pandas DataFrame to LaTeX longtable code without document headers.
@@ -146,9 +145,6 @@ def dataframe_to_longtable(
     :param max_plotted_entities: Maximum number of entities to show in the table. If None, show all entities in the
         table.
     :type max_plotted_entities: int | None, optional
-    :param output_file: DEPRECATED AND WILL BE REMOVED IN A FUTURE VERSION.
-        Path to file where the LaTeX code will be saved. If None, code is not saved to file.
-    :type output_file: str | None, optional
     :return: LaTeX code for the longtable (without document headers).
     :rtype: str
     :raises AttributeError: If both classic_horizontal_lines and minimal_horizontal_lines are True.
@@ -181,9 +177,6 @@ def dataframe_to_longtable(
         for char, escaped in replacements.items():
             s = s.replace(char, escaped)
         return s
-
-    if output_file is not None:
-        warnings.warn("Usage of output_file is deprecated and will be removed in a future version.", DeprecationWarning)
 
     if table_df.empty:
         latex_lines = ["NO DATA"]
@@ -261,11 +254,6 @@ def dataframe_to_longtable(
 
     latex_code = '\n'.join(latex_lines)
 
-    # Write to file if output_file is provided
-    if output_file is not None:
-        with open(output_file, 'w') as f:
-            f.write(latex_code)
-
     return latex_code
 
 
@@ -315,6 +303,7 @@ class Biso:
     default_max_entities = 1000 # default_max_requested_works
     default_max_plotted_entities = 25
     default_template = "simple_white"
+    default_text_position = "outside"
     default_width = 800
 
     def __init__(
@@ -329,6 +318,8 @@ class Biso:
             max_entities: int | None = default_max_entities,
             max_plotted_entities: int = default_max_plotted_entities,
             template: str = default_template,
+            text_position: str = default_text_position,
+            title: str | None = None,
             width: int = default_width,
     ):
         """
@@ -357,6 +348,10 @@ class Biso:
         :type max_plotted_entities: int, optional
         :param template: Template for the plot.
         :type template: str, optional
+        :param text_position: Position of the text on bars.
+        :type text_position: str, optional
+        :param title: Title of the plot.
+        :type title: str | None, optional
         :param width: Width of the plot.
         :type width: int, optional
         """
@@ -380,6 +375,8 @@ class Biso:
         self.max_plotted_entities = max_plotted_entities
         self.max_entities = max_entities
         self.template = template
+        self.text_position = text_position
+        self.title = title
         self.width = width
 
         self.data = None
@@ -447,27 +444,15 @@ class Biso:
 
 
 
-    def get_figure(
-            self,
-            title: str | None = None,
-            textposition: str = "outside",
-            *args,
-            **kwargs
-    ) -> go.Figure:
+    def get_figure(self) -> go.Figure:
         """
         Generate a bar plot based on the fetched data.
 
-        :param title: Title of the plot.
-        :type title: str | None, optional
-        :param textposition: Position of the text on bars.
-        :type textposition: str, optional
-        :param args: Additional positional arguments.
-        :param kwargs: Additional keyword arguments.
         :return: The plotly figure.
         :rtype: go.Figure
         """
         if self.data_status == DataStatus.NOT_FETCHED:
-            self.fetch_data(*args, **kwargs)
+            self.fetch_data()
         if self.data_status == DataStatus.NO_DATA:
             return get_no_data_plot()
         if self.data_status == DataStatus.ERROR:
@@ -492,7 +477,7 @@ class Biso:
             marker_color=self.main_color,
             orientation=self.orientation,
             text=list(self.data.values()),
-            textposition=textposition,
+            textposition=self.text_position,
             textangle=0,
             cliponaxis=False,
             width=get_bar_width(len(self.data.keys())),
@@ -508,8 +493,8 @@ class Biso:
             legend=self.legend_pos,
             margin=self.margin,
         )
-        if title is not None:
-            fig.update_layout(title=title)
+        if self.title is not None:
+            fig.update_layout(title=self.title)
 
         return fig
 
@@ -630,14 +615,10 @@ class Chapters(Biso):
             return
 
 
-    def get_figure(self, output_file: str | None = None, *args, **kwargs) -> str:
+    def get_figure(self) -> str:
         """
         Generate a LaTeX longtable of book chapters.
 
-        :param output_file: If not None, the file path where to save the LaTeX file.
-        :type output_file: str | None
-        :param args: Additional positional arguments.
-        :param kwargs: Additional keyword arguments.
         :return: LaTeX code for the longtable representing the book chapters data.
         :rtype: str
         """
@@ -655,7 +636,6 @@ class Chapters(Biso):
             label='tab_chapters',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
-            output_file=output_file
         )
 
         return latex_table
@@ -698,7 +678,6 @@ class CollaborationMap(Biso):
             map_zoom: bool = False,
             markers_scale_factor: float | int | None = None,
             resolution: int = 110,
-            title: str | None = None, # TODO: merge in parent class
             width: int | None = None,
             zoom_lat_range: list[float | int] | None = None,
             zoom_lon_range: list[float | int] | None = None,
@@ -731,8 +710,6 @@ class CollaborationMap(Biso):
         :type markers_scale_factor: float | int | None, optional
         :param resolution: Resolution of the plot: can either be 110 (low resolution) or 50 (high resolution).
         :type resolution: int, optional
-        :param title: Title of the plot.
-        :type title: str | None, optional
         :param width: Width of the plot.
         :type width: int | None, optional
         :param zoom_lat_range: Latitude range of coordinates for the zoom map. If set to None, the zoom will be on
@@ -778,7 +755,6 @@ class CollaborationMap(Biso):
         else:
             self.markers_scale_factor = markers_scale_factor
         self.resolution = resolution
-        self.title = title
         if width is None:
             width = self.default_width
         super().__init__(lab, year, height=height, width=width, **kwargs)
@@ -886,12 +862,10 @@ class CollaborationMap(Biso):
 
 
 
-    def get_figure(self, *args, **kwargs) -> go.Figure:
+    def get_figure(self) -> go.Figure:
         """
         Plot a map with the number of collaborations per institution.
 
-        :param args: Additional positional arguments.
-        :param kwargs: Additional keyword arguments.
         :return: The plotly figure.
         :rtype: go.Figure
         """
@@ -970,11 +944,7 @@ class CollaborationMap(Biso):
             ),
         )
 
-        fig.update_layout(
-            margin=self.margin,
-            # showlegend=True,
-            # autosize=True
-        )
+        fig.update_layout(margin=self.margin)
 
         if self.title is not None:
             fig.update_layout(title=self.title)
@@ -1298,14 +1268,10 @@ class Journals(Biso):
         self.data['bso.journal_name'] = [work.replace('&amp;', '&') for work in self.data['bso.journal_name']]
 
 
-    def get_figure(self, output_file: str | None = None, *args, **kwargs) -> str:
+    def get_figure(self) -> str:
         """
         Generate a LaTeX longtable of journals.
 
-        :param output_file: If not None, the file path where to save the LaTeX file.
-        :type output_file: str | None
-        :param args: Additional positional arguments.
-        :param kwargs: Additional keyword arguments.
         :return: LaTeX code for the longtable representing the journals data.
         :rtype: str
         """
@@ -1363,7 +1329,6 @@ class Journals(Biso):
             label='tab_journals',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
-            output_file=output_file
         )
 
         return latex_table
@@ -1498,19 +1463,10 @@ class OpenAccessWorks(Biso):
             return stats
 
 
-    def get_figure(
-            self,
-            title: str | None = None,
-            *args,
-            **kwargs
-    ) -> go.Figure:
+    def get_figure(self) -> go.Figure:
         """
         Plot the open access status of works.
 
-        :param title: Title of the plot.
-        :type title: str | None, optional
-        :param args: Additional positional arguments.
-        :param kwargs: Additional keyword arguments.
         :return: The plotly figure.
         :rtype: go.Figure
         """
@@ -1590,8 +1546,8 @@ class OpenAccessWorks(Biso):
             margin=self.margin,
         )
 
-        if title is not None:
-            fig.update_layout(title=title)
+        if self.title is not None:
+            fig.update_layout(title=self.title)
 
         return fig
 
