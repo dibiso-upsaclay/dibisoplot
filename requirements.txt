@@ -6,4 +6,4 @@ tqdm >= 4.65.0
 requests
 emoji-country-flag
 openalex-analysis >= 0.14.1
-
+elasticsearch>7,<9

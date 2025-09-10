@@ -16,6 +16,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
+from elasticsearch import Elasticsearch
 
 from dibisoplot.translation import get_translator
 
@@ -156,6 +157,13 @@ class Biso:
             margin: dict = None,
             max_entities: int | None = default_max_entities,
             max_plotted_entities: int = default_max_plotted_entities,
+            scanr_api_password: str | None = None,
+            scanr_api_port: int = 443,
+            scanr_api_scheme: str | None = "https",
+            scanr_api_url: str | None = None,
+            scanr_api_username: str | None = None,
+            scanr_bso_index: str | None = None,
+            scanr_publications_index: str | None = None,
             template: str = default_template,
             text_position: str = default_text_position,
             title: str | None = None,
@@ -187,6 +195,19 @@ class Biso:
         :type max_entities: int | None, optional
         :param max_plotted_entities: Maximum number of bars in the plot or rows in the table. Default to 25.
         :type max_plotted_entities: int, optional
+        :param scanr_api_password: scanR API password.
+        :type scanr_api_password: str | None, optional
+        :param scanr_api_port: scanR API port. Default to 443.
+        :type scanr_api_port: int | None, optional
+        :param scanr_api_scheme: scanR API scheme. Default to 'https'.
+        :param scanr_api_url: scanR API URL. If None, data won't be queried.
+        :type scanr_api_url: str | None, optional
+        :param scanr_api_username: scanR API username.
+        :type scanr_api_username: str | None, optional
+        :param scanr_bso_index: scanR BSO index.
+        :type scanr_bso_index: str | None, optional
+        :param scanr_publications_index: scanR publications index.
+        :type scanr_publications_index: str | None, optional
         :param template: Template for the plot.
         :type template: str, optional
         :param text_position: Position of the text on bars.
@@ -216,6 +237,13 @@ class Biso:
             self.margin = margin
         self.max_entities = max_entities
         self.max_plotted_entities = max_plotted_entities
+        self.scanr_api_password = scanr_api_password
+        self.scanr_api_port = scanr_api_port
+        self.scanr_api_scheme = scanr_api_scheme
+        self.scanr_api_url = scanr_api_url
+        self.scanr_api_username = scanr_api_username
+        self.scanr_bso_index = scanr_bso_index
+        self.scanr_publications_index = scanr_publications_index
         self.template = template
         self.text_position = text_position
         self.title = title
@@ -394,9 +422,14 @@ class Biso:
         return latex_code
 
 
-    def get_all_dois_with_cursor(self):
+    def get_all_ids_with_cursor(self, id_type = 'doi'):
         """Get all DOI articles using cursor pagination"""
-        all_dois = []
+        id_type_fields = {
+            "doi": "doiId_s",
+            "hal": "halId_s"
+        }
+        id_field = id_type_fields[id_type]
+        all_ids = []
         cursor_mark = "*"  # Initial cursor
         if self.max_entities is None:
             rows_per_request = self.default_hal_cursor_rows_per_request
@@ -406,7 +439,7 @@ class Biso:
         while True:
             # Calculate how many more results we need
             if self.max_entities is not None:
-                remaining = self.max_entities - len(all_dois)
+                remaining = self.max_entities - len(all_ids)
                 if remaining <= 0:
                     break
                 current_rows = min(rows_per_request, remaining)
@@ -416,8 +449,8 @@ class Biso:
             # Build the cursor-based query URL
             cursor_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
-                f"docType_s:(ART OR COMM) AND doiId_s:[* TO *]&wt=json&rows={current_rows}&"
-                f"sort=docid asc&cursorMark={cursor_mark}&fl=doiId_s"
+                f"docType_s:(ART OR COMM) AND {id_field}:[* TO *]&wt=json&rows={current_rows}&"
+                f"sort=docid asc&cursorMark={cursor_mark}&fl={id_field}"
             )
 
             try:
@@ -425,11 +458,11 @@ class Biso:
                 response.raise_for_status()
                 data = response.json()
 
-                # Extract DOIs from the response
+                # Extract IDs from the response
                 docs = data.get('response', {}).get('docs', [])
                 for doc in docs:
-                    if 'doiId_s' in doc and doc['doiId_s']:
-                        all_dois.append(doc['doiId_s'])
+                    if id_field in doc and doc[id_field]:
+                        all_ids.append(doc[id_field])
 
                 # Get the next cursor mark
                 next_cursor_mark = data.get('nextCursorMark', '')
@@ -447,11 +480,67 @@ class Biso:
 
         # Return results (with limit if max_entities is set)
         if self.max_entities is not None:
-            print(f"Returning {len(all_dois)} dois (limit at {self.max_entities})")
-            return all_dois[:self.max_entities]
+            print(f"Returning {len(all_ids)} {id_type} (limit at {self.max_entities})")
+            return all_ids[:self.max_entities]
         else:
-            print(f"Returning all {len(all_dois)} dois")
-            return all_dois
+            print(f"Returning all {len(all_ids)} {id_type} ids")
+            return all_ids
+
+
+    def connect_to_elasticsearch(self) -> Elasticsearch:
+        """Connect to Elasticsearch using the provided credentials."""
+        es = Elasticsearch(
+            hosts=[{
+                "host": self.scanr_api_url,
+                "port": self.scanr_api_port,
+                "scheme": self.scanr_api_scheme
+            }],
+            basic_auth=(self.scanr_api_username, self.scanr_api_password)  # Updated to use basic auth
+        )
+        return es
+
+
+    def get_works_from_es_index_from_id_with_cursor(
+            self,
+            index: str,
+            ids: list[str] | tuple[str],
+            fields_to_retrieve: list[str] | tuple[str] | None = None,
+    ) -> list[dict]:
+        """
+        Get works by their id from an elasticsearch index.
+        TODO: implement cursor (for loop)
+
+        :param index: Index to search in.
+        :type index: str
+        :param ids: List of ids to fetch.
+        :type ids: list[str] | tuple[str]
+        :param fields_to_retrieve: List of fields to retrieve. If None, all fields are retrieved.
+        :type fields_to_retrieve: list[str] | tuple[str] | None
+        :return: List of works.
+        :rtype: list[dict]
+        """
+        es = self.connect_to_elasticsearch()
+
+        query = {
+            "query": {
+                "terms": {
+                    "id.keyword": ids  # Using .keyword for exact match on non-analyzed field
+                }
+            },
+            "size": len(ids)
+        }
+        if fields_to_retrieve is not None:
+            query["_source"] = fields_to_retrieve
+
+        response = es.search(index=index, body=query)
+        # print(response)
+        #
+        # for hit in response['hits']['hits']:
+        #     print("")
+        #     print(hit['_source'])
+        print(response['hits']['total'])
+
+        return response['hits']['hits']
 
 
 
@@ -788,7 +877,7 @@ class CollaborationMap(Biso):
         """
         try:
             # get the list of DOI from HAL:
-            article_dois = self.get_all_dois_with_cursor()
+            article_dois = self.get_all_ids_with_cursor(id_type="doi")
 
             # Download articles metadata from OpenAlex:
             print(f"Downloading the metadata for {len(article_dois)} DOIs from OpenAlex...")
@@ -1267,24 +1356,48 @@ class Journals(Biso):
         """
         # TODO: Add code to get data from bibliohub (use self.max_plotted_entities)
         # TODO: sort by nb publications
-        self.data = pd.read_csv(
-            "bibliohub_top_journals_em2c_2023.csv",
-            na_values="-",
-            usecols=[
-                'bso.journal_name',
-                'bso.oa_details.2024Q4.oa_colors_with_priority_to_publisher',
-                'bso.apc_paid.currency',
-                'bso.apc_paid.value'
-            ],
-        )
+        if self.scanr_api_url is not None:
+            doi_ids = self.get_all_ids_with_cursor(id_type="doi")
+            hal_ids = self.get_all_ids_with_cursor(id_type="hal")
+            # format IDs for scanr:
+            doi_ids = [f"doi{doi_id}" for doi_id in doi_ids]
+            # print("")
+            # print("doi_ids:", doi_ids)
+            hal_ids = [f"hal{hal_id}" for hal_id in hal_ids]
+            fields_to_retrieve = [
+                "journal_name",
+                "oa_details.2024Q4.oa_colors_with_priority_to_publisher",
+                "apc_paid.currency",
+                "apc_paid.value"
+            ]
+            works = self.get_works_from_es_index_from_id_with_cursor(
+                self.scanr_bso_index,
+                hal_ids + doi_ids,
+                fields_to_retrieve
+            )
 
-        self.data = self.data.dropna(subset=['bso.journal_name'])
+            works = [
+                {
+                    "journal_name": work['_source'].get("journal_name"),
+                    "oa_colors_with_priority_to_publisher": next(iter(work['_source'].get("oa_details", {}).get("2024Q4", {}).
+                    get("oa_colors_with_priority_to_publisher")), None),
+                    "apc_paid_currency": work['_source'].get("apc_paid", {}).get("currency"),
+                    "apc_paid_value": work['_source'].get("apc_paid", {}).get("value")
+                }
+                for work in works
+            ]
+            self.data = pd.DataFrame.from_records(works)
 
-        self.data['bso.oa_details.2024Q4.oa_colors_with_priority_to_publisher'] = self.data[
-            'bso.oa_details.2024Q4.oa_colors_with_priority_to_publisher'].replace('green_only', 'green')
+            self.data = self.data.dropna(subset=['journal_name'])
 
-        # Fix data
-        self.data['bso.journal_name'] = [work.replace('&amp;', '&') for work in self.data['bso.journal_name']]
+            self.data['oa_colors_with_priority_to_publisher'] = self.data[
+                'oa_colors_with_priority_to_publisher'].replace('green_only', 'green')
+
+            # Fix data
+            self.data['journal_name'] = [work.replace('&amp;', '&') for work in self.data['journal_name']]
+            self.data_status = DataStatus.OK
+        else:
+            self.data_status = DataStatus.ERROR
 
 
     def get_figure(self) -> str:
@@ -1304,14 +1417,14 @@ class Journals(Biso):
         journals = {}
 
         for index, work in self.data.iterrows():
-            if work['bso.journal_name'] not in journals.keys():
-                journals[work['bso.journal_name']] = []
-            journals[work['bso.journal_name']].append(
-                {'oa_color': work['bso.oa_details.2024Q4.oa_colors_with_priority_to_publisher']}
+            if work['journal_name'] not in journals.keys():
+                journals[work['journal_name']] = []
+            journals[work['journal_name']].append(
+                {'oa_color': work['oa_colors_with_priority_to_publisher']}
             )
-            if pd.notna(work['bso.apc_paid.value']):
-                journals[work['bso.journal_name']][-1]['apc_paid.value'] = work['bso.apc_paid.value']
-                journals[work['bso.journal_name']][-1]['apc_paid.currency'] = work['bso.apc_paid.currency']
+            if pd.notna(work['apc_paid_value']):
+                journals[work['journal_name']][-1]['apc_paid_value'] = work['apc_paid_value']
+                journals[work['journal_name']][-1]['apc_paid_currency'] = work['apc_paid_currency']
 
         journals_table = []
 
@@ -1320,16 +1433,17 @@ class Journals(Biso):
             oa_colors = []
             for work in works:
                 oa_colors.append(work['oa_color'])
-                if 'apc_paid.value' not in work.keys():
+                if 'apc_paid_value' not in work.keys():
                     pass
                 else:
                     if len(apcs) > 0:
                         apcs += ", \\\\ "
-                    apcs += work['apc_paid.value'].replace(",", " ") + " " + work['apc_paid.currency']
+                    apcs += str(work['apc_paid_value']).replace(",", " ") + " " + work['apc_paid_currency']
             oa_colors = ", \\\\ " .join(
                 [f"{count} {color}" for color, count in pd.Index(oa_colors).value_counts().items()]
             )
 
+            # TODO: add locals
             journals_table.append(
                 {
                     'Revue': journal,
