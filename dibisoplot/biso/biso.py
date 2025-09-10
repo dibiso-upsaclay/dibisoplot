@@ -17,6 +17,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 
+from dibisoplot.translation import get_translator
+
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
@@ -52,16 +54,6 @@ def get_empty_plot_with_message(message: str) -> go.Figure:
     return fig
 
 
-def get_no_data_plot() -> go.Figure:
-    """Create the error plot."""
-    return get_empty_plot_with_message("No data")
-
-
-def get_error_plot() -> go.Figure:
-    """Create the error plot."""
-    return get_empty_plot_with_message("Error while making the plot")
-
-
 def get_empty_latex_with_message(message: str) -> str:
     """Create an empty plot with a message."""
     latex_str = """
@@ -73,16 +65,6 @@ def get_empty_latex_with_message(message: str) -> str:
 }
 """
     return latex_str
-
-
-def get_no_data_latex() -> str:
-    """Create the error LaTeX code."""
-    return get_empty_latex_with_message("No data")
-
-
-def get_error_latex() -> str:
-    """Create the error LaTeX code."""
-    return get_empty_latex_with_message("Error while making the table")
 
 
 # Calculate plot bar width depending on the number of bars on the plot, based on a linear interpolation of two examples
@@ -110,151 +92,6 @@ def get_bar_width(n_bars: int) -> int | float:
     if n_bars >= n_bars_max_width:
         return max_width
     return a * n_bars + b
-
-
-def dataframe_to_longtable(
-        table_df,
-        alignments: list | None = None,
-        caption: str | None = None,
-        label: str | None = None,
-        vertical_lines: bool = True,
-        classic_horizontal_lines: bool = False,
-        minimal_horizontal_lines: bool = True,
-        max_plotted_entities: int | None = None,
-) -> str:
-    """
-    Convert a pandas DataFrame to LaTeX longtable code without document headers.
-
-    This function generates LaTeX code for a longtable from a pandas DataFrame. It handles various formatting options
-    such as alignments, captions, labels, and lines between rows and columns.
-
-    :param table_df: pandas DataFrame to convert.
-    :type table_df: pd.DataFrame
-    :param alignments: List of column alignments (e.g., ['l', 'c', 'r']).
-    :type alignments: list | None, optional
-    :param caption: Caption for the table.
-    :type caption: str | None , optional
-    :param label: Label for referencing the table.
-    :type label: str | None, optional
-    :param vertical_lines: Whether to include vertical lines between columns.
-    :type vertical_lines: bool, optional
-    :param classic_horizontal_lines: Whether to include horizontal lines between rows in a classic style.
-    :type classic_horizontal_lines: bool, optional
-    :param minimal_horizontal_lines: Whether to include minimal horizontal lines between rows.
-    :type minimal_horizontal_lines: bool, optional
-    :param max_plotted_entities: Maximum number of entities to show in the table. If None, show all entities in the
-        table.
-    :type max_plotted_entities: int | None, optional
-    :return: LaTeX code for the longtable (without document headers).
-    :rtype: str
-    :raises AttributeError: If both classic_horizontal_lines and minimal_horizontal_lines are True.
-    :raises ValueError: If the number of alignments does not match the number of columns.
-    """
-    def escape_latex(s: str) -> str:
-        """
-        Escape LaTeX special characters in a string.
-
-        :param s: String to escape.
-        :type s: str
-        :return: Escaped string with LaTeX special characters.
-        :rtype: str
-        """
-        if pd.isna(s):
-            return ''
-        s = str(s)
-        replacements = {
-            '&': '\\&',
-            '%': '\\%',
-            '$': '\\$',
-            '#': '\\#',
-            '_': '\\_',
-            # '{': '\\{',
-            # '}': '\\}',
-            # '~': '\\textasciitilde{}',
-            # '^': '\\textasciicircum{}',
-            # '\\': '\\textbackslash{}'
-        }
-        for char, escaped in replacements.items():
-            s = s.replace(char, escaped)
-        return s
-
-    if table_df.empty:
-        latex_lines = ["NO DATA"]
-    else:
-        if classic_horizontal_lines and minimal_horizontal_lines:
-            raise AttributeError("classic_horizontal_lines and minimal_horizontal_lines cannot both be True")
-
-        num_cols = len(table_df.columns)
-
-        if alignments is None:
-            alignments = ['l'] * num_cols
-        else:
-            if len(alignments) != num_cols:
-                raise ValueError("Number of alignments must match number of columns")
-
-        if vertical_lines:
-            col_spec = '|' + '|'.join(alignments) + '|'
-        else:
-            col_spec = ''.join(alignments)
-
-        latex_lines = []
-
-        # Begin longtable
-        latex_lines.append(f'\\begin{{longtable}}{{{col_spec}}}')
-
-        # Add caption and label after header (but before any \hline)
-        if caption is not None:
-            latex_lines.append(f'\\caption{{{escape_latex(caption)}}}')
-        if label is not None:
-            latex_lines.append(f'\\label{{{label}}}\\\\')
-
-        if classic_horizontal_lines:
-            latex_lines.append('\\hline')
-        if minimal_horizontal_lines:
-            latex_lines.append('\\toprule')
-
-        # Add header row
-        header = table_df.columns.tolist()
-        header_line = ' & '.join([escape_latex(str(x)) for x in header]) + ' \\\\'
-        latex_lines.append(header_line)
-
-        if classic_horizontal_lines:
-            latex_lines.append('\\hline')
-        if minimal_horizontal_lines:
-            latex_lines.append('\\midrule')
-
-        # Add data rows with horizontal lines between them if specified
-        for i, (_, row) in enumerate(table_df.iterrows()):
-            row_values = []
-            for item in row:
-                row_values.append(escape_latex(item) if not pd.isna(item) else '')
-            row_line = ' & '.join(row_values) + ' \\\\'
-            latex_lines.append(row_line)
-
-            # Add \hline after each data row except the last one
-            if classic_horizontal_lines and i < len(table_df) - 1:
-                latex_lines.append('\\hline')
-
-            if max_plotted_entities is not None and i > max_plotted_entities:
-                latex_lines.append(
-                    '\\textbf{Seulement ' + str(i) + ' lignes affichées sur ' + str(len(table_df.index)) + '.} \\\\'
-                )
-                break
-
-        # Add a final \hline
-        if classic_horizontal_lines:
-            latex_lines.append('\\hline')
-        if minimal_horizontal_lines:
-            latex_lines.append('\\bottomrule')
-
-        # End longtable
-        latex_lines.append('\\end{longtable}')
-
-    latex_lines.append('')
-
-    latex_code = '\n'.join(latex_lines)
-
-    return latex_code
 
 
 class Biso:
@@ -286,6 +123,7 @@ class Biso:
     default_barcornerradius = 10
     default_hal_cursor_rows_per_request = 10000
     default_height = 600
+    default_language = "fr"
     default_legend_pos = dict(
         x=1,
         y=1,
@@ -312,6 +150,7 @@ class Biso:
             year: int | None = None,
             barcornerradius: int = default_barcornerradius,
             height: int = default_height,
+            language: str = default_language,
             legend_pos: dict = None,
             main_color: str = default_main_color,
             margin: dict = None,
@@ -333,6 +172,8 @@ class Biso:
         :type barcornerradius: int, optional
         :param height: Height of the plot.
         :type height: int, optional
+        :param language: Language for the plot. Default to 'fr'.
+        :type language: str, optional
         :param legend_pos: Position of the legend.
         :type legend_pos: dict, optional
         :param main_color: Main color for the plot.
@@ -363,17 +204,18 @@ class Biso:
             self.year = year
         self.barcornerradius = barcornerradius
         self.height = height
+        self.language = language
+        if legend_pos is None:
+            self.legend_pos = self.default_legend_pos
+        else:
+            self.legend_pos = legend_pos
         self.main_color = main_color
         if margin is None:
             self.margin = self.default_margin
         else:
             self.margin = margin
-        if legend_pos is None:
-            self.legend_pos = self.default_legend_pos
-        else:
-            self.legend_pos = legend_pos
-        self.max_plotted_entities = max_plotted_entities
         self.max_entities = max_entities
+        self.max_plotted_entities = max_plotted_entities
         self.template = template
         self.text_position = text_position
         self.title = title
@@ -381,6 +223,175 @@ class Biso:
 
         self.data = None
         self.data_status = DataStatus.NOT_FETCHED
+
+        self._ = get_translator(language = self.language)
+
+
+    def get_no_data_plot(self) -> go.Figure:
+        """Create the error plot."""
+        return get_empty_plot_with_message(self._("No data"))
+
+
+    def get_error_plot(self) -> go.Figure:
+        """Create the error plot."""
+        return get_empty_plot_with_message(self._("Error while making the plot"))
+
+
+    def get_no_data_latex(self) -> str:
+        """Create the error LaTeX code."""
+        return get_empty_latex_with_message(self._("No data"))
+
+
+    def get_error_latex(self) -> str:
+        """Create the error LaTeX code."""
+        return get_empty_latex_with_message(self._("Error while making the table"))
+
+
+    def dataframe_to_longtable(
+            self,
+            table_df,
+            alignments: list | None = None,
+            caption: str | None = None,
+            label: str | None = None,
+            vertical_lines: bool = True,
+            classic_horizontal_lines: bool = False,
+            minimal_horizontal_lines: bool = True,
+            max_plotted_entities: int | None = None,
+    ) -> str:
+        """
+        Convert a pandas DataFrame to LaTeX longtable code without document headers.
+
+        This function generates LaTeX code for a longtable from a pandas DataFrame. It handles various formatting options
+        such as alignments, captions, labels, and lines between rows and columns.
+
+        :param table_df: pandas DataFrame to convert.
+        :type table_df: pd.DataFrame
+        :param alignments: List of column alignments (e.g., ['l', 'c', 'r']).
+        :type alignments: list | None, optional
+        :param caption: Caption for the table.
+        :type caption: str | None , optional
+        :param label: Label for referencing the table.
+        :type label: str | None, optional
+        :param vertical_lines: Whether to include vertical lines between columns.
+        :type vertical_lines: bool, optional
+        :param classic_horizontal_lines: Whether to include horizontal lines between rows in a classic style.
+        :type classic_horizontal_lines: bool, optional
+        :param minimal_horizontal_lines: Whether to include minimal horizontal lines between rows.
+        :type minimal_horizontal_lines: bool, optional
+        :param max_plotted_entities: Maximum number of entities to show in the table. If None, show all entities in the
+            table.
+        :type max_plotted_entities: int | None, optional
+        :return: LaTeX code for the longtable (without document headers).
+        :rtype: str
+        :raises AttributeError: If both classic_horizontal_lines and minimal_horizontal_lines are True.
+        :raises ValueError: If the number of alignments does not match the number of columns.
+        """
+        def escape_latex(s: str) -> str:
+            """
+            Escape LaTeX special characters in a string.
+
+            :param s: String to escape.
+            :type s: str
+            :return: Escaped string with LaTeX special characters.
+            :rtype: str
+            """
+            if pd.isna(s):
+                return ''
+            s = str(s)
+            replacements = {
+                '&': '\\&',
+                '%': '\\%',
+                '$': '\\$',
+                '#': '\\#',
+                '_': '\\_',
+                # '{': '\\{',
+                # '}': '\\}',
+                # '~': '\\textasciitilde{}',
+                # '^': '\\textasciicircum{}',
+                # '\\': '\\textbackslash{}'
+            }
+            for char, escaped in replacements.items():
+                s = s.replace(char, escaped)
+            return s
+
+        if table_df.empty:
+            latex_lines = [self._("NO DATA")]
+        else:
+            if classic_horizontal_lines and minimal_horizontal_lines:
+                raise AttributeError("classic_horizontal_lines and minimal_horizontal_lines cannot both be True")
+
+            num_cols = len(table_df.columns)
+
+            if alignments is None:
+                alignments = ['l'] * num_cols
+            else:
+                if len(alignments) != num_cols:
+                    raise ValueError("Number of alignments must match number of columns")
+
+            if vertical_lines:
+                col_spec = '|' + '|'.join(alignments) + '|'
+            else:
+                col_spec = ''.join(alignments)
+
+            latex_lines = []
+
+            # Begin longtable
+            latex_lines.append(f'\\begin{{longtable}}{{{col_spec}}}')
+
+            # Add caption and label after header (but before any \hline)
+            if caption is not None:
+                latex_lines.append(f'\\caption{{{escape_latex(caption)}}}')
+            if label is not None:
+                latex_lines.append(f'\\label{{{label}}}\\\\')
+
+            if classic_horizontal_lines:
+                latex_lines.append('\\hline')
+            if minimal_horizontal_lines:
+                latex_lines.append('\\toprule')
+
+            # Add header row
+            header = table_df.columns.tolist()
+            header_line = ' & '.join([escape_latex(str(x)) for x in header]) + ' \\\\'
+            latex_lines.append(header_line)
+
+            if classic_horizontal_lines:
+                latex_lines.append('\\hline')
+            if minimal_horizontal_lines:
+                latex_lines.append('\\midrule')
+
+            # Add data rows with horizontal lines between them if specified
+            for i, (_, row) in enumerate(table_df.iterrows()):
+                row_values = []
+                for item in row:
+                    row_values.append(escape_latex(item) if not pd.isna(item) else '')
+                row_line = ' & '.join(row_values) + ' \\\\'
+                latex_lines.append(row_line)
+
+                # Add \hline after each data row except the last one
+                if classic_horizontal_lines and i < len(table_df) - 1:
+                    latex_lines.append('\\hline')
+
+                if max_plotted_entities is not None and i > max_plotted_entities:
+                    latex_lines.append(
+                        '\\textbf{' + self._("Only") + ' ' + str(i) + ' ' + self._("displayed lines out of") + ' ' +
+                        str(len(table_df.index)) + '.} \\\\'
+                    )
+                    break
+
+            # Add a final \hline
+            if classic_horizontal_lines:
+                latex_lines.append('\\hline')
+            if minimal_horizontal_lines:
+                latex_lines.append('\\bottomrule')
+
+            # End longtable
+            latex_lines.append('\\end{longtable}')
+
+        latex_lines.append('')
+
+        latex_code = '\n'.join(latex_lines)
+
+        return latex_code
 
 
     def get_all_dois_with_cursor(self):
@@ -454,9 +465,9 @@ class Biso:
         if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
         if self.data_status == DataStatus.NO_DATA:
-            return get_no_data_plot()
+            return self.get_no_data_plot()
         if self.data_status == DataStatus.ERROR:
-            return get_error_plot()
+            return self.get_error_plot()
 
         # keep only the first max_plotted_entities items in the dictionary
         self.data =  dict(list(self.data.items())[-self.max_plotted_entities:])
@@ -603,9 +614,9 @@ class Chapters(Biso):
                 self.data = pd.DataFrame.from_records(chapters)
 
                 self.data = self.data.rename(columns={
-                    "title_s": "Titre du chapitre",
-                    "bookTitle_s": "Titre du livre",
-                    "publisher_s": "Éditeur",
+                    "title_s": self._("Chapter title"),
+                    "bookTitle_s": self._("Book title"),
+                    "publisher_s": self._("Publisher"),
                 })
                 self.data_status = DataStatus.OK
         except Exception as e:
@@ -625,14 +636,14 @@ class Chapters(Biso):
         if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
         if self.data_status == DataStatus.NO_DATA:
-            return get_no_data_latex()
+            return self.get_no_data_latex()
         if self.data_status == DataStatus.ERROR:
-            return get_error_latex()
+            return self.get_error_latex()
 
-        latex_table = dataframe_to_longtable(
+        latex_table = self.dataframe_to_longtable(
             self.data,
             alignments=['p{.4\\linewidth}','p{.35\\linewidth}','p{.15\\linewidth}'],
-            caption='Liste des chapitres',
+            caption=self._("Chapters list"),
             label='tab_chapters',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
@@ -873,7 +884,7 @@ class CollaborationMap(Biso):
             self.fetch_data()
         # If no data, we plot the map as usual
         if self.data_status == DataStatus.ERROR:
-            return get_error_plot()
+            return self.get_error_plot()
 
         if self.map_zoom:
             lataxis_range = self.zoom_lat_range if self.zoom_lat_range is None else self.zoom_lat_range
@@ -1120,14 +1131,14 @@ class Conferences(Biso):
         It processes the data to create a dictionary where keys are formatted conference names (including country flags)
         and values are their respective counts.
         """
-        def format_conference_name(conf_name: str, country_code: str) -> str:
+        def format_conference_name(conf_name: str, country_code: str | None) -> str:
             """
             Format the conference name by cropping if too long and adding a country flag.
 
             :param conf_name: The conference name.
             :type conf_name: str
             :param country_code: The country code.
-            :type country_code: str
+            :type country_code: str | None
             :return: The formatted conference name with country flag.
             :rtype: str
             """
@@ -1135,8 +1146,8 @@ class Conferences(Biso):
             if len(conf_name) > 75:
                 conf_name = conf_name[:75]+"... "
             # add country flag
-            if country_code == "(Unknown country)":
-                conf_name += " (Unknown country)"
+            if country_code is None:
+                conf_name += " (" + self._("Unspecified country") + ")"
             else:
                 try:
                     conf_name += " " + flag.flag(country_code)
@@ -1158,10 +1169,13 @@ class Conferences(Biso):
                 self.data_status = DataStatus.NO_DATA
             else:
                 conferences_list = sorted(conferences_list, key=lambda conf: conf['count'])
-                self.data = {format_conference_name(
-                    conf.get('value', "Unknown conference"),
-                    conf.get('pivot', [{}])[0].get('value', "(Unknown country)")
-                ): conf.get('count', 0) for conf in conferences_list}
+                self.data = {
+                    format_conference_name(
+                        conf_name = conf.get('value', self._("Unspecified conference")),
+                        country_code = conf.get('pivot', [{}])[0].get('value', None)
+                    ): conf.get('count', 0)
+                    for conf in conferences_list
+                }
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
@@ -1278,9 +1292,9 @@ class Journals(Biso):
         if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
         if self.data_status == DataStatus.NO_DATA:
-            return get_no_data_latex()
+            return self.get_no_data_latex()
         if self.data_status == DataStatus.ERROR:
-            return get_error_latex()
+            return self.get_error_latex()
 
         journals = {}
 
@@ -1322,7 +1336,7 @@ class Journals(Biso):
 
         df = pd.DataFrame.from_records(journals_table)
 
-        latex_table = dataframe_to_longtable(
+        latex_table = self.dataframe_to_longtable(
             df,
             alignments=['p{.55\\linewidth}','P{.08\\linewidth}','P{.11\\linewidth}','P{.11\\linewidth}'],
             caption='Liste des revues',
@@ -1345,9 +1359,9 @@ class OpenAccessWorks(Biso):
     default_year_range_difference = 4
 
     default_oa_colors = {
-        "TI dans HAL": "#00807A",
-        "OA hors HAL": "#FEBC18",
-        "Accès fermé": "#C60B46"
+        "Full text in HAL": "#00807A",
+        "OA outside HAL": "#FEBC18",
+        "Closed access": "#C60B46"
     }
 
     def __init__(
@@ -1473,17 +1487,19 @@ class OpenAccessWorks(Biso):
         if self.data_status == DataStatus.NOT_FETCHED:
             self.fetch_data()
         if self.data_status == DataStatus.NO_DATA:
-            return get_no_data_plot()
+            return self.get_no_data_plot()
         if self.data_status == DataStatus.ERROR:
-            return get_error_plot()
+            return self.get_error_plot()
 
         years=tuple(self.data.index)
 
         oa_values={
-            "TI dans HAL": np.array(self.data['ti_dans_hal']),
-            "OA hors HAL": np.array(self.data['oa_hors_hal']),
-            "Accès fermé": np.array(self.data['non_oa'])
+            self._("Full text in HAL"): np.array(self.data['ti_dans_hal']), # TI dans HAL
+            self._("OA outside HAL"): np.array(self.data['oa_hors_hal']), # OA hors HAL
+            self._("Closed access"): np.array(self.data['non_oa']) # Accès fermé
         }
+
+        translated_colors = {self._(k):v for k,v in self.colors.items()}
 
         fig = go.Figure()
 
@@ -1505,7 +1521,7 @@ class OpenAccessWorks(Biso):
                 x=years,
                 y=count,
                 name=oa_type,
-                marker_color=self.colors[oa_type],
+                marker_color=translated_colors[oa_type],
                 insidetextanchor="middle",
                 textangle=0,
                 cliponaxis=False,
