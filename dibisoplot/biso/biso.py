@@ -404,9 +404,9 @@ class Biso:
                 if classic_horizontal_lines and i < len(table_df) - 1:
                     latex_lines.append('\\hline')
 
-                if max_plotted_entities is not None and i > max_plotted_entities:
+                if max_plotted_entities is not None and i >= max_plotted_entities - 1:
                     latex_lines.append(
-                        '\\textbf{' + self._("Only") + ' ' + str(i) + ' ' + self._("displayed lines out of") + ' ' +
+                        '\\textbf{' + self._("Only") + ' ' + str(i + 1) + ' ' + self._("displayed lines out of") + ' ' +
                         str(len(table_df.index)) + '.} \\\\'
                     )
                     break
@@ -1525,8 +1525,17 @@ class Journals(Biso):
                 }
                 return pd.Series(merged_data)
 
-            self.data = self.data.groupby('journal_name').apply(merge_cells).reset_index(drop=True).sort_values(
-                'nb_works', ascending=False)
+            self.data = self.data.groupby("journal_name").apply(merge_cells).reset_index(drop=True).sort_values(
+                "nb_works", ascending=False)
+            # move unspecified journals to the end
+            idx = self.data.index.tolist() # copy index
+            # find index of the Unspecified journal
+            unspecified_journals_idx = self.data.index[
+                self.data["journal_name"] == self._("Unspecified journal")
+            ].tolist()
+            idx.remove(unspecified_journals_idx[0])
+            # reindex the dataframe to move the Unspecified journal to the end
+            self.data = self.data.reindex(idx + unspecified_journals_idx)
             nb_journals = (self.data["journal_name"] != self._("Unspecified journal")).sum()
 
             if len(self.data.index) == 0:
@@ -1585,7 +1594,7 @@ class Journals(Biso):
 
         latex_table = self.dataframe_to_longtable(
             df,
-            alignments=['p{.3\\linewidth}','P{.2\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}'],
+            alignments=['p{.27\\linewidth}','P{.18\\linewidth}','P{.07\\linewidth}','P{.12\\linewidth}','P{.12\\linewidth}','P{.07\\linewidth}'],
             caption=self._("List of journals, publishers, open access status and paid APC"),
             label='tab_journals',
             vertical_lines=False,
