@@ -142,6 +142,7 @@ class Biso:
     default_max_entities = 1000 # default_max_requested_works
     default_max_plotted_entities = 25
     default_scanr_bso_version = "2024Q4"
+    default_scanr_chunk_size = 50
     default_template = "simple_white"
     default_text_position = "outside"
     default_width = 800
@@ -165,6 +166,7 @@ class Biso:
             scanr_api_username: str | None = None,
             scanr_bso_index: str | None = None,
             scanr_bso_version: str = default_scanr_bso_version,
+            scanr_chunk_size: int = default_scanr_chunk_size,
             scanr_publications_index: str | None = None,
             template: str = default_template,
             text_position: str = default_text_position,
@@ -210,6 +212,8 @@ class Biso:
         :type scanr_bso_index: str | None, optional
         :param scanr_bso_version: Version of the BSO data. Default to "2024Q4".
         :type scanr_bso_version: str, optional
+        :param scanr_chunk_size: Number of publications to fetch at a time when using the scanR API. Default to 50.
+        :type scanr_chunk_size: int, optional
         :param scanr_publications_index: scanR publications index.
         :type scanr_publications_index: str | None, optional
         :param template: Template for the plot.
@@ -248,6 +252,7 @@ class Biso:
         self.scanr_api_username = scanr_api_username
         self.scanr_bso_index = scanr_bso_index
         self.scanr_bso_version = scanr_bso_version
+        self.scanr_chunk_size = scanr_chunk_size
         self.scanr_publications_index = scanr_publications_index
         self.template = template
         self.text_position = text_position
@@ -337,11 +342,6 @@ class Biso:
                 '$': '\\$',
                 '#': '\\#',
                 '_': '\\_',
-                # '{': '\\{',
-                # '}': '\\}',
-                # '~': '\\textasciitilde{}',
-                # '^': '\\textasciicircum{}',
-                # '\\': '\\textbackslash{}'
             }
             for char, escaped in replacements.items():
                 s = s.replace(char, escaped)
@@ -503,17 +503,17 @@ class Biso:
             basic_auth=(self.scanr_api_username, self.scanr_api_password)  # Updated to use basic auth
         )
         return es
-
-
-    def get_works_from_es_index_from_id_with_cursor(
+    
+    
+    def get_works_from_es_index_from_id(
             self,
             index: str,
             ids: list[str] | tuple[str],
             fields_to_retrieve: list[str] | tuple[str] | None = None,
+            es: Elasticsearch = None
     ) -> list[dict]:
         """
         Get works by their id from an elasticsearch index.
-        TODO: implement cursor (for loop)
 
         :param index: Index to search in.
         :type index: str
@@ -521,11 +521,15 @@ class Biso:
         :type ids: list[str] | tuple[str]
         :param fields_to_retrieve: List of fields to retrieve. If None, all fields are retrieved.
         :type fields_to_retrieve: list[str] | tuple[str] | None
+        :param es: Elasticsearch client. If None, a new client is created.
+        :type es: Elasticsearch | None
         :return: List of works.
         :rtype: list[dict]
         """
-        es = self.connect_to_elasticsearch()
+        if es is None:
+            es = self.connect_to_elasticsearch()
 
+        # print(f"Retrieving {len(ids)} works from Elasticsearch index {index}...")
         query = {
             "query": {
                 "terms": {
@@ -538,14 +542,38 @@ class Biso:
             query["_source"] = fields_to_retrieve
 
         response = es.search(index=index, body=query)
-        # print(response)
-        #
-        # for hit in response['hits']['hits']:
-        #     print("")
-        #     print(hit['_source'])
-        print(response['hits']['total'])
+
+        # print(f"Retrieved {response['hits']['total']['value']} documents from Elasticsearch.")
 
         return response['hits']['hits']
+
+
+    def get_works_from_es_index_from_id_by_chunk(
+            self,
+            index: str,
+            ids: list[str] | tuple[str],
+            fields_to_retrieve: list[str] | tuple[str] | None = None,
+    ) -> list[dict]:
+        """
+        Get works by their id from an elasticsearch index by chuncks.
+
+        :param index: Index to search in.
+        :type index: str
+        :param ids: List of ids to fetch.
+        :type ids: list[str] | tuple[str]
+        :param fields_to_retrieve: List of fields to retrieve. If None, all fields are retrieved.
+        :type fields_to_retrieve: list[str] | tuple[str] | None
+        :return: List of works.
+        :rtype: list[dict]
+        """
+        es = self.connect_to_elasticsearch()
+
+        res = []
+        for i in range(0, len(ids), self.scanr_chunk_size):
+            chunk_id = ids[i:i + self.scanr_chunk_size]
+            res += self.get_works_from_es_index_from_id(index, chunk_id, fields_to_retrieve, es)
+
+        return res
 
 
 
@@ -1411,7 +1439,7 @@ class Journals(Biso):
                 "apc_paid.currency",
                 "apc_paid.value"
             ]
-            works = self.get_works_from_es_index_from_id_with_cursor(
+            works = self.get_works_from_es_index_from_id_by_chunk(
                 self.scanr_bso_index,
                 hal_ids + doi_ids,
                 fields_to_retrieve
