@@ -7,6 +7,7 @@ from dibisoplot.biso.biso import Conferences
 from dibisoplot.biso.biso import EuropeanProjects
 from dibisoplot.biso.biso import Journals
 from dibisoplot.biso.biso import OpenAccessWorks
+from dibisoplot.biso.biso import PrivateSectorCollaborations
 from dibisoplot.biso.biso import WorksType
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "EuropeanProjects",
     "Journals",
     "OpenAccessWorks",
+    "PrivateSectorCollaborations",
     "WorksType",
 ]

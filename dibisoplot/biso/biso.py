@@ -5,6 +5,7 @@ import math
 import pkgutil
 import tomllib
 import warnings
+from collections import defaultdict
 
 from collections import Counter
 from datetime import datetime
@@ -510,7 +511,7 @@ class Biso:
             index: str,
             ids: list[str] | tuple[str],
             fields_to_retrieve: list[str] | tuple[str] | None = None,
-            es: Elasticsearch = None
+            es: Elasticsearch = None,
     ) -> list[dict]:
         """
         Get works by their id from an elasticsearch index.
@@ -548,11 +549,63 @@ class Biso:
         return response['hits']['hits']
 
 
+    def get_works_from_es_index_from_id_and_private_sector(
+            self,
+            index: str,
+            ids: list[str] | tuple[str],
+            fields_to_retrieve: list[str] | tuple[str] | None = None,
+            es: Elasticsearch = None,
+    ) -> list[dict]:
+        """
+        Get works which are from the private sector by their id from an elasticsearch index.
+
+        :param index: Index to search in.
+        :type index: str
+        :param ids: List of ids to fetch.
+        :type ids: list[str] | tuple[str]
+        :param fields_to_retrieve: List of fields to retrieve. If None, all fields are retrieved.
+        :type fields_to_retrieve: list[str] | tuple[str] | None
+        :param es: Elasticsearch client. If None, a new client is created.
+        :type es: Elasticsearch | None
+        :return: List of works.
+        :rtype: list[dict]
+        """
+        if es is None:
+            es = self.connect_to_elasticsearch()
+
+        # print(f"Retrieving {len(ids)} works from Elasticsearch index {index}...")
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"terms": {"id.keyword": ids}},
+                        {
+                            "term": {
+                                "affiliations.kind.keyword": "Secteur privé"
+                            }
+                        }
+                    ]
+                }
+            },
+            "size": len(ids)  # Limit the results to the number of IDs provided
+        }
+
+        if fields_to_retrieve is not None:
+            query["_source"] = fields_to_retrieve
+
+        response = es.search(index=index, body=query)
+
+        # print(f"Retrieved {response['hits']['total']['value']} documents from Elasticsearch.")
+
+        return response['hits']['hits']
+
+
     def get_works_from_es_index_from_id_by_chunk(
             self,
             index: str,
             ids: list[str] | tuple[str],
             fields_to_retrieve: list[str] | tuple[str] | None = None,
+            query_type: str | None = None,
     ) -> list[dict]:
         """
         Get works by their id from an elasticsearch index by chuncks.
@@ -563,6 +616,8 @@ class Biso:
         :type ids: list[str] | tuple[str]
         :param fields_to_retrieve: List of fields to retrieve. If None, all fields are retrieved.
         :type fields_to_retrieve: list[str] | tuple[str] | None
+        :param query_type: Type of query to use, if None, the query will simply get all the documents by their IDs.
+        :type query_type: str | None
         :return: List of works.
         :rtype: list[dict]
         """
@@ -571,7 +626,10 @@ class Biso:
         res = []
         for i in range(0, len(ids), self.scanr_chunk_size):
             chunk_id = ids[i:i + self.scanr_chunk_size]
-            res += self.get_works_from_es_index_from_id(index, chunk_id, fields_to_retrieve, es)
+            if query_type == "private_sector":
+                res += self.get_works_from_es_index_from_id_and_private_sector(index, chunk_id, fields_to_retrieve, es)
+            else:
+                res += self.get_works_from_es_index_from_id(index, chunk_id, fields_to_retrieve, es)
 
         return res
 
@@ -1423,7 +1481,12 @@ class Journals(Biso):
         try:
             if self.scanr_api_url is None:
                 self.data_status = DataStatus.ERROR
-                return
+                stats = {
+                    'nb_works': self._("Error"),
+                    'nb_works_found_in_bso': self._("Error"),
+                    'nb_journals': self._("Error")
+                }
+                return stats
             doi_ids = self.get_all_ids_with_cursor(id_type="doi")
             hal_ids = self.get_all_ids_with_cursor(id_type="hal")
             # format IDs for scanr:
@@ -1498,7 +1561,7 @@ class Journals(Biso):
                     'nb_works_found_in_bso': nb_found_works,
                     'nb_journals': 0
                 }
-                return
+                return stats
 
             self.data.drop(['oa_colors', 'oa_host_type'], axis=1, inplace=True)
 
@@ -1540,19 +1603,14 @@ class Journals(Biso):
 
             if len(self.data.index) == 0:
                 self.data_status = DataStatus.NO_DATA
-                stats = {
-                    'nb_works': nb_works,
-                    'nb_works_found_in_bso': nb_found_works,
-                    'nb_journals': int(nb_journals)
-                }
-                return
+            else:
+                self.data_status = DataStatus.OK
 
             stats = {
                 'nb_works': nb_works,
                 'nb_works_found_in_bso': nb_found_works,
                 'nb_journals': int(nb_journals)
             }
-            self.data_status = DataStatus.OK
 
             return stats
         except Exception as e:
@@ -1823,6 +1881,81 @@ class OpenAccessWorks(Biso):
             fig.update_layout(title=self.title)
 
         return fig
+
+
+class PrivateSectorCollaborations(Biso):
+    """
+    A class to fetch and generate a plots with the names of the private sector collaborations.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(self, lab: str, year: int | None = None, **kwargs):
+        """
+        Initialize the PrivateSectorCollaborations class.
+
+        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
+        :type lab: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param args: Additional positional arguments.
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(lab, year, **kwargs)
+
+    def fetch_data(self):
+        """
+        Fetch data about PrivateSectorCollaborations from the API.
+        """
+        try:
+            if self.scanr_api_url is None:
+                self.data_status = DataStatus.ERROR
+                return
+            doi_ids = self.get_all_ids_with_cursor(id_type="doi")
+            hal_ids = self.get_all_ids_with_cursor(id_type="hal")
+            # format IDs for scanr:
+            doi_ids = [f"doi{doi_id}" for doi_id in doi_ids]
+            hal_ids = [f"hal{hal_id}" for hal_id in hal_ids]
+            fields_to_retrieve = [
+                "affiliations"
+            ]
+            works = self.get_works_from_es_index_from_id_by_chunk(
+                self.scanr_publications_index,
+                hal_ids + doi_ids,
+                fields_to_retrieve,
+                query_type="private_sector"
+            )
+
+            nb_works = len(hal_ids)
+            nb_found_works = len(works)
+            print(f"Found {nb_found_works} works with private sector collaboration out of {nb_works} queried works")
+
+            # Dictionary to store the count of collaborations per "Secteur privé" institution
+            collaborations = defaultdict(int)
+
+            for work in works:
+                for affiliation in work.get('_source', {}).get('affiliations', []):
+                    if 'kind' in affiliation and 'Secteur privé' in affiliation['kind']:
+                        # Extract the name (label) of the institution
+                        if 'label' in affiliation:
+                            name = affiliation['label'].get('default', affiliation['label'].get('fr', affiliation['label'].get('en', 'Unknown')))
+                            collaborations[name] += 1
+
+            self.data = dict(collaborations)
+            print(self.data)
+
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 
 class WorksType(Biso):
