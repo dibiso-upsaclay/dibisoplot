@@ -141,6 +141,7 @@ class Biso:
     )
     default_max_entities = 1000 # default_max_requested_works
     default_max_plotted_entities = 25
+    default_scanr_bso_version = "2024Q4"
     default_template = "simple_white"
     default_text_position = "outside"
     default_width = 800
@@ -163,6 +164,7 @@ class Biso:
             scanr_api_url: str | None = None,
             scanr_api_username: str | None = None,
             scanr_bso_index: str | None = None,
+            scanr_bso_version: str = default_scanr_bso_version,
             scanr_publications_index: str | None = None,
             template: str = default_template,
             text_position: str = default_text_position,
@@ -206,6 +208,8 @@ class Biso:
         :type scanr_api_username: str | None, optional
         :param scanr_bso_index: scanR BSO index.
         :type scanr_bso_index: str | None, optional
+        :param scanr_bso_version: Version of the BSO data. Default to "2024Q4".
+        :type scanr_bso_version: str, optional
         :param scanr_publications_index: scanR publications index.
         :type scanr_publications_index: str | None, optional
         :param template: Template for the plot.
@@ -243,6 +247,7 @@ class Biso:
         self.scanr_api_url = scanr_api_url
         self.scanr_api_username = scanr_api_username
         self.scanr_bso_index = scanr_bso_index
+        self.scanr_bso_version = scanr_bso_version
         self.scanr_publications_index = scanr_publications_index
         self.template = template
         self.text_position = text_position
@@ -1401,8 +1406,8 @@ class Journals(Biso):
             fields_to_retrieve = [
                 "journal_name",
                 "publisher",
-                "oa_details.2024Q4.oa_colors",
-                "oa_details.2024Q4.oa_host_type",
+                f"oa_details.{self.scanr_bso_version}.oa_colors",
+                f"oa_details.{self.scanr_bso_version}.oa_host_type",
                 "apc_paid.currency",
                 "apc_paid.value"
             ]
@@ -1420,8 +1425,8 @@ class Journals(Biso):
                 {
                     "journal_name": work['_source'].get("journal_name"),
                     "publisher": work['_source'].get("publisher"),
-                    "oa_colors": work['_source'].get("oa_details", {}).get("2024Q4", {}).get("oa_colors"),
-                    "oa_host_type": work['_source'].get("oa_details", {}).get("2024Q4", {}).get(
+                    "oa_colors": work['_source'].get("oa_details", {}).get(self.scanr_bso_version, {}).get("oa_colors"),
+                    "oa_host_type": work['_source'].get("oa_details", {}).get(self.scanr_bso_version, {}).get(
                         "oa_host_type", "").split(";"),
                     "apc_paid_currency": work['_source'].get("apc_paid", {}).get("currency"),
                     "apc_paid_value": work['_source'].get("apc_paid", {}).get("value")
