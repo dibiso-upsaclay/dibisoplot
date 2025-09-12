@@ -959,9 +959,9 @@ class CollaborationMap(Biso):
             self.data = None
             self.data_status = DataStatus.ERROR
             stats = {
-                'collaborations_nb': "Error",
-                'institutions_nb': "Error",
-                'countries_nb': "Error"
+                'collaborations_nb': self._("Error"),
+                'institutions_nb': self._("Error"),
+                'countries_nb': self._("Error")
             }
             return stats
 
@@ -1351,12 +1351,46 @@ class Journals(Biso):
     def fetch_data(self):
         """
         Fetch data about journals from the API.
-
-        TODO
         """
-        # TODO: Add code to get data from bibliohub (use self.max_plotted_entities)
-        # TODO: sort by nb publications
-        if self.scanr_api_url is not None:
+        def format_bso_currency(currency):
+            if currency == 'USD':
+                return '$'
+            elif currency == 'EUR':
+                return '€'
+            elif currency == 'GBP':
+                return '£'
+            elif currency == 'JPY':
+                return '¥'
+            elif currency == 'CAD':
+                return 'CA$'
+            else:
+                return currency
+
+        def format_apc(row):
+            if pd.notna(row['apc_paid_value']) and pd.notna(row['apc_paid_currency']):
+                return f"{int(row['apc_paid_value'])} {format_bso_currency(row['apc_paid_currency'])}"
+            elif pd.notna(row['apc_paid_value']):
+                return f"{int(row['apc_paid_value'])}"
+            return None
+
+        def format_is_oa_on_journal(row) -> str:
+            return get_oa_status_latex_emoji(row["is_oa_on_journal"])
+
+        def format_is_oa_on_repository(row) -> str:
+            return get_oa_status_latex_emoji(row["is_oa_on_repository"])
+
+        def get_oa_status_latex_emoji(status) -> str:
+            if pd.isna(status):
+                return "\\emoji{white-question-mark}"
+            elif status:
+                return "\\emoji{check-mark-button}"
+            else:
+                return "\\emoji{cross-mark}"
+
+        try:
+            if self.scanr_api_url is None:
+                self.data_status = DataStatus.ERROR
+                return
             doi_ids = self.get_all_ids_with_cursor(id_type="doi")
             hal_ids = self.get_all_ids_with_cursor(id_type="hal")
             # format IDs for scanr:
@@ -1366,7 +1400,9 @@ class Journals(Biso):
             hal_ids = [f"hal{hal_id}" for hal_id in hal_ids]
             fields_to_retrieve = [
                 "journal_name",
-                "oa_details.2024Q4.oa_colors_with_priority_to_publisher",
+                "publisher",
+                "oa_details.2024Q4.oa_colors",
+                "oa_details.2024Q4.oa_host_type",
                 "apc_paid.currency",
                 "apc_paid.value"
             ]
@@ -1376,28 +1412,117 @@ class Journals(Biso):
                 fields_to_retrieve
             )
 
+            nb_works = len(hal_ids)
+            nb_found_works = len(works)
+            print(f"Found {nb_found_works} works out of {nb_works}")
+
             works = [
                 {
                     "journal_name": work['_source'].get("journal_name"),
-                    "oa_colors_with_priority_to_publisher": next(iter(work['_source'].get("oa_details", {}).get("2024Q4", {}).
-                    get("oa_colors_with_priority_to_publisher")), None),
+                    "publisher": work['_source'].get("publisher"),
+                    "oa_colors": work['_source'].get("oa_details", {}).get("2024Q4", {}).get("oa_colors"),
+                    "oa_host_type": work['_source'].get("oa_details", {}).get("2024Q4", {}).get(
+                        "oa_host_type", "").split(";"),
                     "apc_paid_currency": work['_source'].get("apc_paid", {}).get("currency"),
                     "apc_paid_value": work['_source'].get("apc_paid", {}).get("value")
                 }
                 for work in works
             ]
+            for work in works:
+                oa_colors = work["oa_colors"].copy()
+                oa_host_type = work["oa_host_type"].copy()
+                if "green" in oa_colors and "repository" in oa_host_type:
+                    work["is_oa_on_repository"] = True
+                    oa_colors.remove("green")
+                    oa_host_type.remove("repository")
+                if len(oa_colors) != len(oa_host_type):
+                    work["is_oa_on_journal"] = None
+                    warnings.warn(
+                        f"{len(oa_colors)} oa colors and {len(oa_host_type)} oa host type (unknown is_oa_on_journal) "
+                        f"for {work}"
+                    )
+                    continue
+                if len(oa_colors) > 1:
+                    work["is_oa_on_journal"] = None
+                    warnings.warn(f"{len(oa_colors)} oa colors and oa host type (unknown is_oa_on_journal) for {work}")
+                    continue
+                if len(oa_host_type) > 0:
+                    if oa_colors[0] == "closed":
+                        work["is_oa_on_journal"] = False
+                    elif oa_colors[0] in ["hybrid", "gold"]:
+                        work["is_oa_on_journal"] = True
+                    else:
+                        work["is_oa_on_journal"] = None
+                        warnings.warn(f"Unknown oa color {oa_colors[0]}")
+
+
             self.data = pd.DataFrame.from_records(works)
 
-            self.data = self.data.dropna(subset=['journal_name'])
+            if len(self.data.index) == 0:
+                self.data_status = DataStatus.NO_DATA
+                stats = {
+                    'nb_works': nb_works,
+                    'nb_works_found_in_bso': nb_found_works,
+                    'nb_journals': 0
+                }
+                return
 
-            self.data['oa_colors_with_priority_to_publisher'] = self.data[
-                'oa_colors_with_priority_to_publisher'].replace('green_only', 'green')
+            self.data.drop(['oa_colors', 'oa_host_type'], axis=1, inplace=True)
 
-            # Fix data
-            self.data['journal_name'] = [work.replace('&amp;', '&') for work in self.data['journal_name']]
+            self.data['journal_name'] = self.data['journal_name'].fillna(self._("Unspecified journal"))
+            self.data['publisher'] = self.data['publisher'].fillna(self._("Unspecified publisher"))
+
+            # # Fix data
+            # self.data['journal_name'] = [work.replace('&amp;', '&') for work in self.data['journal_name']]
+
+            # format APC values
+            self.data['paid_apc'] = self.data.apply(format_apc, axis=1)
+            self.data.drop(['apc_paid_value', 'apc_paid_currency'], axis=1, inplace=True)
+            self.data['is_oa_on_journal'] = self.data.apply(format_is_oa_on_journal, axis=1)
+            self.data['is_oa_on_repository'] = self.data.apply(format_is_oa_on_repository, axis=1)
+
+            def merge_cells(group):
+                merged_data = {
+                    "journal_name": group['journal_name'].iloc[0],
+                    "publisher": ' ; '.join(group['publisher'].dropna().unique()),
+                    "nb_works": len(group),
+                    "is_oa_on_journal": ' '.join(group['is_oa_on_journal']),
+                    "is_oa_on_repository": ' '.join(group['is_oa_on_repository']),
+                    "paid_apc": ', '.join(group['paid_apc'].dropna().unique())
+                }
+                return pd.Series(merged_data)
+
+            self.data = self.data.groupby('journal_name').apply(merge_cells).reset_index(drop=True).sort_values(
+                'nb_works', ascending=False)
+            nb_journals = (self.data["journal_name"] != self._("Unspecified journal")).sum()
+
+            if len(self.data.index) == 0:
+                self.data_status = DataStatus.NO_DATA
+                stats = {
+                    'nb_works': nb_works,
+                    'nb_works_found_in_bso': nb_found_works,
+                    'nb_journals': int(nb_journals)
+                }
+                return
+
+            stats = {
+                'nb_works': nb_works,
+                'nb_works_found_in_bso': nb_found_works,
+                'nb_journals': int(nb_journals)
+            }
             self.data_status = DataStatus.OK
-        else:
+
+            return stats
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
             self.data_status = DataStatus.ERROR
+            stats = {
+                'nb_works': self._("Error"),
+                'nb_works_found_in_bso': self._("Error"),
+                'nb_journals': self._("Error")
+            }
+            return stats
 
 
     def get_figure(self) -> str:
@@ -1414,51 +1539,21 @@ class Journals(Biso):
         if self.data_status == DataStatus.ERROR:
             return self.get_error_latex()
 
-        journals = {}
+        df = self.data.copy(deep=True)
 
-        for index, work in self.data.iterrows():
-            if work['journal_name'] not in journals.keys():
-                journals[work['journal_name']] = []
-            journals[work['journal_name']].append(
-                {'oa_color': work['oa_colors_with_priority_to_publisher']}
-            )
-            if pd.notna(work['apc_paid_value']):
-                journals[work['journal_name']][-1]['apc_paid_value'] = work['apc_paid_value']
-                journals[work['journal_name']][-1]['apc_paid_currency'] = work['apc_paid_currency']
-
-        journals_table = []
-
-        for journal, works in journals.items():
-            apcs = ""
-            oa_colors = []
-            for work in works:
-                oa_colors.append(work['oa_color'])
-                if 'apc_paid_value' not in work.keys():
-                    pass
-                else:
-                    if len(apcs) > 0:
-                        apcs += ", \\\\ "
-                    apcs += str(work['apc_paid_value']).replace(",", " ") + " " + work['apc_paid_currency']
-            oa_colors = ", \\\\ " .join(
-                [f"{count} {color}" for color, count in pd.Index(oa_colors).value_counts().items()]
-            )
-
-            # TODO: add locals
-            journals_table.append(
-                {
-                    'Revue': journal,
-                    'Nombre de publications': "\\makecell{" + str(len(works)) + "}",
-                    'Status des accès ouverts des publications': "\\makecell{" + oa_colors + "}",
-                    'APC payés': "\\makecell{" + apcs + "}"
-                }
-            )
-
-        df = pd.DataFrame.from_records(journals_table)
+        df = df.rename(columns={
+            "journal_name": self._("Journal"),
+            "publisher": self._("Publisher"),
+            "nb_works": self._("Number of works"),
+            "is_oa_on_journal": self._("Is open access on the journal"),
+            "is_oa_on_repository": self._("Is open access on a repository"),
+            "paid_apc": self._("Paid APC"),
+        })
 
         latex_table = self.dataframe_to_longtable(
             df,
-            alignments=['p{.55\\linewidth}','P{.08\\linewidth}','P{.11\\linewidth}','P{.11\\linewidth}'],
-            caption='Liste des revues',
+            alignments=['p{.3\\linewidth}','P{.2\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}','P{.08\\linewidth}'],
+            caption=self._("List of journals, publishers, open access status and paid APC"),
             label='tab_journals',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
