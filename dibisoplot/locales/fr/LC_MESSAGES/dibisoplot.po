@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-12 17:28+0200\n"
+"POT-Creation-Date: 2025-09-12 18:38+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: Romain Thomas <contact@romainthomas.net>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,101 +17,106 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: biso/biso.py:261 biso/biso.py:271
+#: biso/biso.py:270 biso/biso.py:280
 msgid "No data"
 msgstr "Pas de données"
 
-#: biso/biso.py:266
+#: biso/biso.py:275
 msgid "Error while making the plot"
 msgstr "Erreur lors de la création du graphique"
 
-#: biso/biso.py:276
+#: biso/biso.py:285
 msgid "Error while making the table"
 msgstr "Erreur lors de la création du tableau"
 
-#: biso/biso.py:347
+#: biso/biso.py:351
 msgid "NO DATA"
 msgstr "PAS DE DONNÉES"
 
-#: biso/biso.py:405
+#: biso/biso.py:409
 msgid "Only"
 msgstr "Seulement"
 
-#: biso/biso.py:405
+#: biso/biso.py:409
 msgid "displayed lines out of"
 msgstr "lignes affichées sur"
 
-#: biso/biso.py:707
+#: biso/biso.py:739
 msgid "Chapter title"
 msgstr "Titre du chapitre"
 
-#: biso/biso.py:708
+#: biso/biso.py:740
 msgid "Book title"
 msgstr "Titre du livre"
 
-#: biso/biso.py:709 biso/biso.py:1587
+#: biso/biso.py:741 biso/biso.py:1588
 msgid "Publisher"
 msgstr "Éditeur"
 
-#: biso/biso.py:736
+#: biso/biso.py:768
 msgid "Chapters list"
 msgstr "Liste des chapitres"
 
-#: biso/biso.py:963 biso/biso.py:964 biso/biso.py:965 biso/biso.py:1524
-#: biso/biso.py:1525 biso/biso.py:1526
+#: biso/biso.py:995 biso/biso.py:996 biso/biso.py:997 biso/biso.py:1563
+#: biso/biso.py:1564 biso/biso.py:1565
 msgid "Error"
 msgstr "Erreur"
 
-#: biso/biso.py:1245
+#: biso/biso.py:1277
 msgid "Unspecified country"
 msgstr "Pays non spécifié"
 
-#: biso/biso.py:1269
+#: biso/biso.py:1301
 msgid "Unspecified conference"
 msgstr "Conférence non spécifiée"
 
-#: biso/biso.py:1475 biso/biso.py:1500
+#: biso/biso.py:1505 biso/biso.py:1534 biso/biso.py:1539
 #, fuzzy
 msgid "Unspecified journal"
 msgstr "Pays non spécifié"
 
-#: biso/biso.py:1476
+#: biso/biso.py:1506
 #, fuzzy
 msgid "Unspecified publisher"
 msgstr "Pays non spécifié"
 
-#: biso/biso.py:1586
+#: biso/biso.py:1587
 msgid "Journal"
 msgstr "Revue"
 
-#: biso/biso.py:1588
+#: biso/biso.py:1589
 msgid "Number of works"
 msgstr "Numbre de travaux"
 
-#: biso/biso.py:1589
+#: biso/biso.py:1590
 msgid "Is open access on the journal"
 msgstr "Est en accès ouvert sur le journal"
 
-#: biso/biso.py:1590
+#: biso/biso.py:1591
 msgid "Is open access on a repository"
 msgstr "Est en accès ouvert sur un dépôt"
 
-#: biso/biso.py:1591
+#: biso/biso.py:1592
 msgid "Paid APC"
 msgstr "APC payés"
 
-#: biso/biso.py:1597
+#: biso/biso.py:1598
 msgid "List of journals, publishers, open access status and paid APC"
-msgstr "Liste des revues, des éditeurs, des statuts d'accès ouverts et des APC payés"
+msgstr ""
+"Liste des revues, des éditeurs, des statuts d'accès ouverts et des APC payés"
 
-#: biso/biso.py:1752
+#: biso/biso.py:1599
+msgid "From the list of publications in HAL and the data of the BSO"
+msgstr "D'après la liste des publications dans HAL et les données du BSO"
+
+#: biso/biso.py:1754
 msgid "Full text in HAL"
 msgstr "TI dans HAL"
 
-#: biso/biso.py:1753
+#: biso/biso.py:1755
 msgid "OA outside HAL"
 msgstr "OA hors HAL"
 
-#: biso/biso.py:1754
+#: biso/biso.py:1756
 msgid "Closed access"
 msgstr "Accès fermé"

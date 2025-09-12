@@ -1595,7 +1595,8 @@ class Journals(Biso):
         latex_table = self.dataframe_to_longtable(
             df,
             alignments=['p{.27\\linewidth}','P{.18\\linewidth}','P{.07\\linewidth}','P{.12\\linewidth}','P{.12\\linewidth}','P{.07\\linewidth}'],
-            caption=self._("List of journals, publishers, open access status and paid APC"),
+            caption=self._("List of journals, publishers, open access status and paid APC") + ". " +
+                    self._("From the list of publications in HAL and the data of the BSO") + " " + self.scanr_bso_version + ".",
             label='tab_journals',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
