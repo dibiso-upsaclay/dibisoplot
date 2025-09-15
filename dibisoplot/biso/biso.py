@@ -349,7 +349,7 @@ class Biso:
             return s
 
         if table_df.empty:
-            latex_lines = [self._("NO DATA")]
+            latex_lines = [self._("No data")]
         else:
             if classic_horizontal_lines and minimal_horizontal_lines:
                 raise AttributeError("classic_horizontal_lines and minimal_horizontal_lines cannot both be True")
