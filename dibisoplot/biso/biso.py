@@ -1525,8 +1525,8 @@ class Journals(Biso):
                 for work in works
             ]
             for work in works:
-                oa_colors = work["oa_colors"].copy()
-                oa_host_type = work["oa_host_type"].copy()
+                oa_colors = work["oa_colors"].copy() if work["oa_colors"] is not None else []
+                oa_host_type = work["oa_host_type"].copy() if work["oa_host_type"] is not None else []
                 if "green" in oa_colors and "repository" in oa_host_type:
                     work["is_oa_on_repository"] = True
                     oa_colors.remove("green")
@@ -1661,6 +1661,53 @@ class Journals(Biso):
         )
 
         return latex_table
+
+
+class JournalsHal(Biso):
+    """
+    A class to fetch and plot data about journals from HAL data.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(self, lab: str, year: int | None = None, **kwargs):
+        """
+        Initialize the JournalsHal class.
+
+        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
+        :type lab: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param args: Additional positional arguments.
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(lab, year, **kwargs)
+
+
+    def fetch_data(self):
+        """
+        Fetch data about Journals from the HAL API.
+        """
+        try:
+            facet_url=(
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
+                f"&facet=true&facet.field=journalTitle_s&facet.limit={self.max_plotted_entities}"
+            )
+            facets=requests.get(facet_url).json()
+            jounals_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('journalTitle_s', [])
+            self.data = {jounals_list[i]: jounals_list[i + 1] for i in range(0, len(jounals_list), 2)
+                         if jounals_list[i + 1] != 0}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return
 
 
 class OpenAccessWorks(Biso):
