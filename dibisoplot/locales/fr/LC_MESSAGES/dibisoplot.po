@@ -83,7 +83,7 @@ msgstr "Revue"
 
 #: biso/biso.py:1647
 msgid "Number of works"
-msgstr "Numbre de travaux"
+msgstr "Nombre de travaux"
 
 #: biso/biso.py:1648
 msgid "Is open access on the journal"
