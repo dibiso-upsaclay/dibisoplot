@@ -683,6 +683,7 @@ class Biso:
             template=self.template,
             legend=self.legend_pos,
             margin=self.margin,
+            xaxis = dict(dtick = 1),
         )
         if self.title is not None:
             fig.update_layout(title=self.title)
@@ -1923,6 +1924,7 @@ class OpenAccessWorks(Biso):
             bargroupgap=0.0,
             legend=self.legend_pos,
             margin=self.margin,
+            yaxis = dict(dtick = 1),
         )
 
         if self.title is not None:
@@ -1992,7 +1994,6 @@ class PrivateSectorCollaborations(Biso):
                             collaborations[name] += 1
 
             self.data = dict(collaborations)
-            print(self.data)
 
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
