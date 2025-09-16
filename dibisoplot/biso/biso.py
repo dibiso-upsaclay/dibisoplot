@@ -1702,6 +1702,7 @@ class JournalsHal(Biso):
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
+                self.data = dict(sorted(self.data.items(), key=lambda item: item[1]))
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
