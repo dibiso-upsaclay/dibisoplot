@@ -1511,7 +1511,8 @@ class Journals(Biso):
                 stats = {
                     'nb_works': self._("Error"),
                     'nb_works_found_in_bso': self._("Error"),
-                    'nb_journals': self._("Error")
+                    'nb_journals': self._("Error"),
+                    'bso_version': self.scanr_bso_version
                 }
                 return stats
             doi_ids = self.get_all_ids_with_cursor(id_type="doi")
@@ -1587,7 +1588,8 @@ class Journals(Biso):
                 stats = {
                     'nb_works': nb_works,
                     'nb_works_found_in_bso': nb_found_works,
-                    'nb_journals': 0
+                    'nb_journals': 0,
+                    'bso_version': self.scanr_bso_version
                 }
                 return stats
 
@@ -1637,7 +1639,8 @@ class Journals(Biso):
             stats = {
                 'nb_works': nb_works,
                 'nb_works_found_in_bso': nb_found_works,
-                'nb_journals': int(nb_journals)
+                'nb_journals': int(nb_journals),
+                'bso_version': self.scanr_bso_version
             }
 
             return stats
@@ -1648,7 +1651,8 @@ class Journals(Biso):
             stats = {
                 'nb_works': self._("Error"),
                 'nb_works_found_in_bso': self._("Error"),
-                'nb_journals': self._("Error")
+                'nb_journals': self._("Error"),
+                'bso_version': self.scanr_bso_version
             }
             return stats
 
