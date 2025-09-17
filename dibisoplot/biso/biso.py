@@ -4,6 +4,7 @@ from typing import Any
 import math
 import pkgutil
 import tomllib
+import logging
 import warnings
 from collections import defaultdict
 
@@ -263,6 +264,8 @@ class Biso:
         self.data = None
         self.data_status = DataStatus.NOT_FETCHED
         self.n_entities_found = None
+        # self.max_entities_reached is set to True if the number of processed entities was limited by max_entities
+        self.max_entities_reached = False
 
         self._ = get_translator(language = self.language)
 
@@ -460,6 +463,8 @@ class Biso:
             if self.max_entities is not None:
                 remaining = self.max_entities - len(all_ids)
                 if remaining <= 0:
+                    self.max_entities_reached = True
+                    logging.warning(f"Max entities reached (plot {self.__class__.__name__}).")
                     break
                 current_rows = min(rows_per_request, remaining)
             else:
@@ -500,6 +505,9 @@ class Biso:
         # Return results (with limit if max_entities is set)
         if self.max_entities is not None:
             print(f"Returning {len(all_ids)} {id_type} (limit at {self.max_entities})")
+            if len(all_ids) > self.max_entities:
+                self.max_entities_reached = True
+                logging.warning(f"Max entities reached (plot {self.__class__.__name__}).")
             return all_ids[:self.max_entities]
         else:
             print(f"Returning all {len(all_ids)} {id_type} ids")
