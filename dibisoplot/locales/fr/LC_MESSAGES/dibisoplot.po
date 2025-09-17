@@ -91,7 +91,7 @@ msgstr "Est en accès ouvert sur le journal"
 
 #: biso/biso.py:1649
 msgid "Is open access on a repository"
-msgstr "Est en accès ouvert sur un dépôt"
+msgstr "Est en accès ouvert sur une archive"
 
 #: biso/biso.py:1650
 msgid "Paid APC"
