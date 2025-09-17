@@ -7,6 +7,7 @@ import tomllib
 import logging
 import warnings
 from collections import defaultdict
+import traceback
 
 from collections import Counter
 from datetime import datetime
@@ -758,6 +759,7 @@ class AnrProjects(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -828,6 +830,7 @@ class Chapters(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -1074,6 +1077,7 @@ class CollaborationMap(Biso):
             return stats
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             stats = {
@@ -1308,6 +1312,7 @@ class CollaborationNames(Biso):
             self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -1391,6 +1396,7 @@ class Conferences(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -1441,6 +1447,7 @@ class EuropeanProjects(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -1626,9 +1633,11 @@ class Journals(Biso):
             unspecified_journals_idx = self.data.index[
                 self.data["journal_name"] == self._("Unspecified journal")
             ].tolist()
-            idx.remove(unspecified_journals_idx[0])
-            # reindex the dataframe to move the Unspecified journal to the end
-            self.data = self.data.reindex(idx + unspecified_journals_idx)
+            # if Unspecified journal was found in the index
+            if unspecified_journals_idx:
+                idx.remove(unspecified_journals_idx[0])
+                # reindex the dataframe to move the Unspecified journal to the end
+                self.data = self.data.reindex(idx + unspecified_journals_idx)
             nb_journals = (self.data["journal_name"] != self._("Unspecified journal")).sum()
 
             if len(self.data.index) == 0:
@@ -1646,6 +1655,7 @@ class Journals(Biso):
             return stats
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             stats = {
@@ -1738,6 +1748,7 @@ class JournalsHal(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -1864,6 +1875,7 @@ class OpenAccessWorks(Biso):
             return stats
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             stats = {
@@ -2032,6 +2044,7 @@ class PrivateSectorCollaborations(Biso):
 
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
@@ -2080,6 +2093,7 @@ class WorksType(Biso):
                 self.data_status = DataStatus.OK
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
             return
