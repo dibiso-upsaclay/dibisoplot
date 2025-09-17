@@ -683,7 +683,7 @@ class Biso:
             template=self.template,
             legend=self.legend_pos,
             margin=self.margin,
-            xaxis = dict(dtick = 1),
+            # xaxis = dict(dtick = 1), # TODO: fix for big values
         )
         if self.title is not None:
             fig.update_layout(title=self.title)
@@ -694,7 +694,11 @@ class Biso:
 class AnrProjects(Biso):
     """
     A class to fetch and plot data about ANR projects.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
     """
+
+    orientation = 'h'
 
     def __init__(self, lab: str, year: int | None = None, **kwargs):
         """
@@ -1546,11 +1550,12 @@ class Journals(Biso):
                 if len(oa_host_type) > 0:
                     if oa_colors[0] == "closed":
                         work["is_oa_on_journal"] = False
-                    elif oa_colors[0] in ["hybrid", "gold"]:
+                    elif oa_colors[0] in ["hybrid", "gold", "diamond"]:
                         work["is_oa_on_journal"] = True
                     else:
                         work["is_oa_on_journal"] = None
-                        warnings.warn(f"Unknown oa color {oa_colors[0]}")
+                        if oa_colors[0] != "other":
+                            warnings.warn(f"Unknown oa color {oa_colors[0]}")
 
 
             self.data = pd.DataFrame.from_records(works)
@@ -1580,7 +1585,7 @@ class Journals(Biso):
 
             def merge_cells(group):
                 merged_data = {
-                    "journal_name": group['journal_name'].iloc[0],
+                    "journal_name": group.name,
                     "publisher": ' ; '.join(group['publisher'].dropna().unique()),
                     "nb_works": len(group),
                     "is_oa_on_journal": ' '.join(group['is_oa_on_journal']),
@@ -1589,8 +1594,8 @@ class Journals(Biso):
                 }
                 return pd.Series(merged_data)
 
-            self.data = self.data.groupby("journal_name").apply(merge_cells).reset_index(drop=True).sort_values(
-                "nb_works", ascending=False)
+            self.data = self.data.groupby("journal_name").apply(merge_cells, include_groups=False).reset_index(
+                drop=True).sort_values("nb_works", ascending=False)
             # move unspecified journals to the end
             idx = self.data.index.tolist() # copy index
             # find index of the Unspecified journal
@@ -1924,7 +1929,6 @@ class OpenAccessWorks(Biso):
             bargroupgap=0.0,
             legend=self.legend_pos,
             margin=self.margin,
-            yaxis = dict(dtick = 1),
         )
 
         if self.title is not None:
