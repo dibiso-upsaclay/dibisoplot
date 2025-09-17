@@ -262,6 +262,7 @@ class Biso:
 
         self.data = None
         self.data_status = DataStatus.NOT_FETCHED
+        self.n_entities_found = None
 
         self._ = get_translator(language = self.language)
 
@@ -394,7 +395,19 @@ class Biso:
                 latex_lines.append('\\midrule')
 
             # Add data rows with horizontal lines between them if specified
+            i = 0
             for i, (_, row) in enumerate(table_df.iterrows()):
+                # add the number of displayed rows when there are too many rows in dataframe (aka there was no limit in
+                # API requests)
+                if max_plotted_entities is not None and i >= max_plotted_entities:
+                    # if we are not in the case that the number of entities found in the API is higher than the number
+                    # of returned entities by the API
+                    if not(self.n_entities_found is not None and len(table_df.index) < self.n_entities_found):
+                        latex_lines.append(
+                            '\\textbf{' + self._("Only") + ' ' + str(i) + ' ' + self._("displayed lines out of") + ' ' +
+                            str(len(table_df.index)) + '.} \\\\'
+                        )
+                    break
                 row_values = []
                 for item in row:
                     row_values.append(escape_latex(item) if not pd.isna(item) else '')
@@ -404,13 +417,13 @@ class Biso:
                 # Add \hline after each data row except the last one
                 if classic_horizontal_lines and i < len(table_df) - 1:
                     latex_lines.append('\\hline')
-
-                if max_plotted_entities is not None and i >= max_plotted_entities - 1:
-                    latex_lines.append(
-                        '\\textbf{' + self._("Only") + ' ' + str(i + 1) + ' ' + self._("displayed lines out of") + ' ' +
-                        str(len(table_df.index)) + '.} \\\\'
-                    )
-                    break
+            # add the number of displayed rows when more entities where found in the API compared to the number of rows
+            # in the dataframe
+            if self.n_entities_found is not None and len(table_df.index) < self.n_entities_found:
+                latex_lines.append(
+                    '\\textbf{' + self._("Only") + ' ' + str(i + 1) + ' ' + self._("displayed lines out of") + ' ' +
+                    str(self.n_entities_found) + '.} \\\\'
+                )
 
             # Add a final \hline
             if classic_horizontal_lines:
@@ -780,6 +793,7 @@ class Chapters(Biso):
                 f"fl=title_s,bookTitle_s,publisher_s"
             )
             chapters = requests.get(url).json()
+            self.n_entities_found = chapters.get('response', {}).get('numFound', 0)
             chapters = chapters.get('response', {}).get('docs', [])
 
             if not chapters:
