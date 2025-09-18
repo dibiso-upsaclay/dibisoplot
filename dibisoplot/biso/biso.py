@@ -1588,7 +1588,20 @@ class Journals(Biso):
                             warnings.warn(f"Unknown oa color {oa_colors[0]}")
 
 
-            self.data = pd.DataFrame.from_records(works)
+            self.data = pd.DataFrame.from_records(
+                works,
+                columns=[
+                    "journal_name",
+                    "publisher",
+                    "oa_colors",
+                    "oa_host_type",
+                    "paid_apc",
+                    "apc_paid_value",
+                    "apc_paid_currency",
+                    "is_oa_on_journal",
+                    "is_oa_on_repository",
+                ]
+            )
 
             if len(self.data.index) == 0:
                 self.data_status = DataStatus.NO_DATA
