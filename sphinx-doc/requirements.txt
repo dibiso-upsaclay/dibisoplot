@@ -5,3 +5,4 @@ pydata-sphinx-theme
 sphinx-mdinclude
 sphinx-test-reports
 sphinx-design
+ipython_pygments_lexers
