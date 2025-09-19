@@ -12,6 +12,8 @@
 #
 import os
 import sys
+import shutil
+
 from dibisoplot._version import __version__
 
 sys.path.insert(0, os.path.abspath(os.path.join('..')))
@@ -39,13 +41,19 @@ extensions = [
     "sphinx.ext.autosummary",
     # "sphinx_rtd_theme",
     "sphinx_design",
-    # "nbsphinx",
+    "nbsphinx",
     # "IPython.sphinxext.ipython_console_highlighting",
     # "IPython.sphinxext.ipython_directive",
     "sphinx_needs",
     "sphinxcontrib.test_reports",
     "sphinx_mdinclude",
 ]
+
+nbsphinx_execute = "never"  # Skip execution if not needed
+nbsphinx_allow_errors = True  # Allow build to continue despite JS errors
+nbsphinx_remove_tagged_cells = True
+nbsphinx_prompt_width = "0px"  # Hide input prompts entirely
+
 autosummary_generate = False  # Set to False to prevent generating separate files
 
 # Add any paths that contain templates here, relative to this directory.
@@ -86,4 +94,10 @@ def skip(app, what, name, obj, would_skip, options):
 
 def setup(app):
     app.connect("autodoc-skip-member", skip)
+    # app.add_js_file("https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js")
 
+    # manually copy notebook figures
+    src = os.path.join(os.path.dirname(__file__), 'notebooks', 'figures')
+    dest = os.path.join(app.outdir, '_static', 'figures')
+    if os.path.exists(src):
+        shutil.copytree(src, dest, dirs_exist_ok=True)

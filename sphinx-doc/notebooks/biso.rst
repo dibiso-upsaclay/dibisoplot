@@ -4,6 +4,16 @@ BiSO
 | Romain THOMAS 2025
 | DiBISO - Université Paris-Saclay
 
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    # Create figure directory
+    
+    import os
+    
+    os.makedirs("figures/biso", exist_ok=True)
+
 ANR Projects
 ------------
 
@@ -18,7 +28,26 @@ ANR Projects
     
     anr_fig = anr_projects.get_figure()
     
-    anr_fig.show()
+    # anr_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    anr_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    anr_fig.write_html(
+        "figures/biso/anr_projects.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 Chapters
 --------
@@ -46,11 +75,31 @@ Collaboration Map
     collab_map = CollaborationMap(
         lab = "LISN",
         year = "2023",
+        countries_to_ignore = ["France"],
     )
     
-    collab_map_fig = collab_map.get_figure(countries_to_ignore = ["France"])
+    collab_map_fig = collab_map.get_figure()
     
-    collab_map_fig.show()
+    # collab_map_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    collab_map_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    collab_map_fig.write_html(
+        "figures/biso/collaboration_map.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 Collaboration Names
 -------------------
@@ -62,11 +111,31 @@ Collaboration Names
     collabs = CollaborationNames(
         lab = "LISN",
         year = "2023",
+        countries_to_exclude = ['fr'],
     )
     
-    collabs_fig = collabs.get_figure(countries_to_exclude = ['fr'])
+    collabs_fig = collabs.get_figure()
     
-    collabs_fig.show()
+    # collabs_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    collabs_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    collabs_fig.write_html(
+        "figures/biso/collaboration_names.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 Conferences
 -----------
@@ -82,7 +151,26 @@ Conferences
     
     conf_fig = conf.get_figure()
     
-    conf_fig.show()
+    # conf_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    conf_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    conf_fig.write_html(
+        "figures/biso/conferences.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 European Projects
 -----------------
@@ -98,7 +186,26 @@ European Projects
     
     eu_projects_fig = eu_projects.get_figure()
     
-    eu_projects_fig.show()
+    # eu_projects_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    eu_projects_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    eu_projects_fig.write_html(
+        "figures/biso/european_projects.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 Journals
 --------
@@ -131,7 +238,26 @@ Open Access Works
     
     oa_works_fig = oa_works.get_figure()
     
-    oa_works_fig.show()
+    # oa_works_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    oa_works_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    oa_works_fig.write_html(
+        "figures/biso/open_access_works.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
 
 Works Type
 ----------
@@ -147,4 +273,23 @@ Works Type
     
     works_type_fig = works_type.get_figure()
     
-    works_type_fig.show()
+    # works_type_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    works_type_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    works_type_fig.write_html(
+        "figures/biso/works_type.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}  # Enable responsiveness
+    )
+
+.. container::
