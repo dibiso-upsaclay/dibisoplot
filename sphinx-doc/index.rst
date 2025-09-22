@@ -10,5 +10,6 @@ Table of contents
    getting_started
    examples
    settings
+   translations
    reference/index
    development
