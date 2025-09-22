@@ -12,3 +12,5 @@ docs
 dibisoplot.egg-info
 
 dist
+
+*.env

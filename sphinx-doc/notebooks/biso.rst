@@ -4,6 +4,29 @@ BiSO
 | Romain THOMAS 2025
 | DiBISO - Université Paris-Saclay
 
+Load environment variables
+--------------------------
+
+Load the environment variables from the ``.env`` file.
+
+Then, load the API keys and index names, and store them in a dictionary
+for further use.
+
+.. code:: ipython3
+
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    scanr_config = {
+        'scanr_api_password' : os.getenv("SCANR_API_PASSWORD"),
+        'scanr_api_url' : os.getenv("SCANR_API_URL"),
+        'scanr_api_username' : os.getenv("SCANR_API_USERNAME"),
+        'scanr_bso_index' : os.getenv("SCANR_BSO_INDEX"),
+        'scanr_publications_index' : os.getenv("SCANR_PUBLICATIONS_INDEX")
+    }
+
 .. code:: ipython3
 
     # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
@@ -23,7 +46,7 @@ ANR Projects
     
     anr_projects = AnrProjects(
         lab = "SUP_SONDRA",
-        year = "2023",
+        year = 2023,
     )
     
     anr_fig = anr_projects.get_figure()
@@ -44,7 +67,7 @@ ANR Projects
         "figures/biso/anr_projects.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
@@ -74,7 +97,7 @@ Collaboration Map
     
     collab_map = CollaborationMap(
         lab = "LISN",
-        year = "2023",
+        year = 2023,
         countries_to_ignore = ["France"],
     )
     
@@ -96,7 +119,7 @@ Collaboration Map
         "figures/biso/collaboration_map.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
@@ -110,7 +133,7 @@ Collaboration Names
     
     collabs = CollaborationNames(
         lab = "LISN",
-        year = "2023",
+        year = 2023,
         countries_to_exclude = ['fr'],
     )
     
@@ -132,7 +155,7 @@ Collaboration Names
         "figures/biso/collaboration_names.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
@@ -146,7 +169,7 @@ Conferences
     
     conf = Conferences(
         lab = "LGI",
-        year = "2023",
+        year = 2023,
     )
     
     conf_fig = conf.get_figure()
@@ -167,7 +190,7 @@ Conferences
         "figures/biso/conferences.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
@@ -181,7 +204,7 @@ European Projects
     
     eu_projects = EuropeanProjects(
         lab = "UMPHY",
-        year = "2023",
+        year = 2023,
     )
     
     eu_projects_fig = eu_projects.get_figure()
@@ -202,7 +225,7 @@ European Projects
         "figures/biso/european_projects.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
@@ -214,15 +237,50 @@ Journals
 
     from dibisoplot.biso import Journals
     
-    # TODO
-    # journals = Journals(
-    #     lab = "",
-    #     year = "2023",
-    # )
+    journals = Journals(
+        lab = "EM2C",
+        year = 2023,
+        **scanr_config,
+    )
     
-    # journals_fig = journals.get_figure()
+    journals_latex = journals.get_figure()
     
-    # journals_fig.show()
+    print(journals_latex)
+
+Journals in HAL
+---------------
+
+.. code:: ipython3
+
+    from dibisoplot.biso import JournalsHal
+    
+    journals_hal = JournalsHal(
+        lab = "EM2C",
+        year = 2023,
+    )
+    
+    journals_hal_fig = journals_hal.get_figure()
+    
+    # journals_hal_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    journals_hal_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    journals_hal_fig.write_html(
+        "figures/biso/journals_hal.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}
+    )
+
+.. container::
 
 Open Access Works
 -----------------
@@ -254,7 +312,43 @@ Open Access Works
         "figures/biso/open_access_works.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
+    )
+
+.. container::
+
+Private Sector Collaborations
+-----------------------------
+
+.. code:: ipython3
+
+    from dibisoplot.biso import PrivateSectorCollaborations
+    
+    private_collabs = PrivateSectorCollaborations(
+        lab = "LGI",
+        year = 2023,
+        **scanr_config,
+    )
+    
+    private_collabs_fig = private_collabs.get_figure()
+    
+    # private_collabs_fig.show()
+
+.. code:: ipython3
+
+    # This cell has the metadata: "nbsphinx": "hidden" to be hidden in the sphinx documentation
+    
+    private_collabs_fig.update_layout(
+        autosize=True,
+        margin=dict(l=20, r=20, t=20, b=20),  # Reduce margins
+        width=None,  # Let the iframe control width
+        height=None, # Let the iframe control height
+    )
+    private_collabs_fig.write_html(
+        "figures/biso/private_collabs.html",
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True}
     )
 
 .. container::
@@ -268,7 +362,7 @@ Works Type
     
     works_type = WorksType(
         lab = "LGI",
-        year = "2023",
+        year = 2023,
     )
     
     works_type_fig = works_type.get_figure()
@@ -289,7 +383,7 @@ Works Type
         "figures/biso/works_type.html",
         include_plotlyjs="cdn",
         full_html=False,
-        config={"responsive": True}  # Enable responsiveness
+        config={"responsive": True}
     )
 
 .. container::
