@@ -1752,8 +1752,10 @@ class JournalsHal(Biso):
             )
             facets=requests.get(facet_url).json()
             jounals_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('journalTitle_s', [])
-            self.data = {jounals_list[i]: jounals_list[i + 1] for i in range(0, len(jounals_list), 2)
-                         if jounals_list[i + 1] != 0}
+            self.data = {
+                jounals_list[i][:75]+"... " if len(jounals_list[i]) > 75 else jounals_list[i]: jounals_list[i + 1]
+                for i in range(0, len(jounals_list), 2) if jounals_list[i + 1] != 0
+            }
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
@@ -2046,6 +2048,8 @@ class PrivateSectorCollaborations(Biso):
                         # Extract the name (label) of the institution
                         if 'label' in affiliation:
                             name = affiliation['label'].get('default', affiliation['label'].get('fr', affiliation['label'].get('en', 'Unknown')))
+                            if len(name) > 75:
+                                name = name[:75]+"... "
                             collaborations[name] += 1
 
             self.data = dict(collaborations)
