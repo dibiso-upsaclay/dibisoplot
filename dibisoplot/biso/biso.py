@@ -107,6 +107,9 @@ class Biso:
     :cvar orientation: Orientation for plots ('v' for vertical, 'h' for horizontal).
     :cvar figure_file_extension: File extension of the figure (pdf, tex...).
     :cvar default_barcornerradius: Default corner radius for bars in plots.
+    :cvar default_dynamic_min_height: Default minimum height for plots when the height is set dynamically.
+    :cvar default_dynamic_height_per_bar: Default height per bar for plots when the height is set dynamically.
+    :cvar default_dynamic_bar_width: Default width for bars in plots when the height is set dynamically.
     :cvar default_hal_cursor_rows_per_request: Default number of rows per request when using the cursor API.
     :cvar default_height: Default height for plots.
     :cvar default_legend_pos: Default position for the legend.
@@ -125,6 +128,9 @@ class Biso:
     figure_file_extension = "pdf"
 
     default_barcornerradius = 10
+    default_dynamic_min_height = 150
+    default_dynamic_height_per_bar = 25
+    default_dynamic_bar_width = 0.7
     default_hal_cursor_rows_per_request = 10000
     default_height = 600
     default_language = "fr"
@@ -155,6 +161,9 @@ class Biso:
             lab,
             year: int | None = None,
             barcornerradius: int = default_barcornerradius,
+            dynamic_height: bool = True,
+            dynamic_min_height: int | float = default_dynamic_min_height,
+            dynamic_height_per_bar: int | float = default_dynamic_height_per_bar,
             height: int = default_height,
             language: str = default_language,
             legend_pos: dict = None,
@@ -185,6 +194,12 @@ class Biso:
         :type year: int | none, optional
         :param barcornerradius: Corner radius for bars in plots.
         :type barcornerradius: int, optional
+        :param dynamic_height: Whether to use dynamic height for the plot. Only implemented for horizontal bar plots.
+        :type dynamic_height: bool, optional
+        :param dynamic_min_height: Minimum height for the plot when the height is set dynamically.
+        :type dynamic_min_height: int | float, optional
+        :param dynamic_height_per_bar: Height per bar for plots when the height is set dynamically.
+        :type dynamic_height_per_bar: int | float, optional
         :param height: Height of the plot.
         :type height: int, optional
         :param language: Language for the plot. Default to 'fr'.
@@ -235,6 +250,9 @@ class Biso:
         else:
             self.year = year
         self.barcornerradius = barcornerradius
+        self.dynamic_height = dynamic_height
+        self.dynamic_min_height = dynamic_min_height
+        self.dynamic_height_per_bar = dynamic_height_per_bar
         self.height = height
         self.language = language
         if legend_pos is None:
@@ -683,6 +701,15 @@ class Biso:
             x_values = list(self.data.values())
             y_values = list(self.data.keys())
 
+        if self.dynamic_height and self.orientation == 'h':
+            height = self.dynamic_height_per_bar*len(self.data.keys())
+            if height < self.dynamic_min_height:
+                height = self.dynamic_min_height
+            bar_width = self.default_dynamic_bar_width
+        else:
+            height = self.height
+            bar_width = get_bar_width(len(self.data.keys()))
+
         # Add a bar for each type
         fig.add_trace(go.Bar(
             x=x_values,
@@ -693,7 +720,7 @@ class Biso:
             textposition=self.text_position,
             textangle=0,
             cliponaxis=False,
-            width=get_bar_width(len(self.data.keys())),
+            width=bar_width,
         ))
 
         # Update layout for better visualization
@@ -701,7 +728,7 @@ class Biso:
             barmode='stack',
             barcornerradius=self.barcornerradius,
             width=self.width,
-            height=self.height,
+            height=height,
             template=self.template,
             legend=self.legend_pos,
             margin=self.margin,
