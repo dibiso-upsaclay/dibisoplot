@@ -285,8 +285,40 @@ class Biso:
         self.n_entities_found = None
         # self.max_entities_reached is set to True if the number of processed entities was limited by max_entities
         self.max_entities_reached = False
+        self.info = ""
 
         self._ = get_translator(language = self.language)
+
+
+    def generate_plot_info(
+            self,
+            hide_max_entities_reached_warning: bool = False,
+            hide_n_entities_warning: bool = False
+    ):
+        """
+        Generate the plot info.
+        This information is used to print a warning on the report.
+
+        :param hide_max_entities_reached_warning: If True, the warning about the maximum number of entities processed
+            is not displayed.
+        :type hide_max_entities_reached_warning: bool, optional
+        :param hide_n_entities_warning: If True, the warning about the number of entities found is not displayed.
+        :type hide_n_entities_warning: bool, optional
+        """
+        if self.max_entities_reached and not hide_max_entities_reached_warning:
+            self.info += r"\emoji{warning} "
+            self.info += self._("The data processing was limited by the maximum number of downloadable entities (")
+            self.info += str(self.max_entities)
+            self.info += self._("). Data can be missing or values can be lower than the real values. ")
+            self.info += r"\\"
+        if (self.n_entities_found is not None and self.n_entities_found > self.max_plotted_entities and
+                not hide_n_entities_warning):
+            self.info += self._("The number of displayed entities was limited to ")
+            self.info += str(self.max_plotted_entities)
+            self.info += self._(". In the API, ")
+            self.info += str(self.n_entities_found)
+            self.info += self._(" entities were found.")
+            self.info += r"\\"
 
 
     def get_no_data_plot(self) -> go.Figure:
@@ -772,24 +804,28 @@ class AnrProjects(Biso):
         and values are their respective counts.
         """
         try:
-            facet_url=(
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}"
-                f"&wt=json&rows=0&facet=true&facet.field=anrProjectAcronym_s&facet.limit={self.max_plotted_entities}"
+            facet_url = (
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0&"
+                f"facet=true&facet.field=anrProjectAcronym_s&facet.limit={self.max_plotted_entities}&facet.mincount=1&"
+                "stats=true&stats.field={!count=true+cardinality=true}anrProjectAcronym_s"
             )
-            facets=requests.get(facet_url).json()
-            anr_projects_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('anrProjectAcronym_s', [])
-            self.data = {anr_projects_list[i]: anr_projects_list[i + 1] for i in range(0, len(anr_projects_list), 2)
-                         if anr_projects_list[i + 1] != 0}
+            res = requests.get(facet_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('anrProjectAcronym_s', {}).
+                                     get('cardinality', 0))
+            anr_projects_list = res.get('facet_counts', {}).get('facet_fields', {}).get('anrProjectAcronym_s', [])
+            self.data = {anr_projects_list[i]: anr_projects_list[i + 1] for i in range(0, len(anr_projects_list), 2)}
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
 
@@ -824,7 +860,7 @@ class Chapters(Biso):
         book title (`bookTitle_s`), and publisher (`publisher_s`).
         """
         try:
-            url=(
+            url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=*:*&fq=docType_s:COUV&"
                 f"fq=producedDateY_i:{self.year}&rows={self.max_plotted_entities}&wt=json&indent=true&"
                 f"fl=title_s,bookTitle_s,publisher_s"
@@ -855,12 +891,14 @@ class Chapters(Biso):
                     "publisher_s": self._("Publisher"),
                 })
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
     def get_figure(self) -> str:
@@ -880,7 +918,7 @@ class Chapters(Biso):
         latex_table = self.dataframe_to_longtable(
             self.data,
             alignments=['p{.4\\linewidth}','p{.35\\linewidth}','p{.15\\linewidth}'],
-            caption=self._("Chapters list"),
+            caption=self._("List of chapters entered in HAL"),
             label='tab_chapters',
             vertical_lines=False,
             max_plotted_entities=self.max_plotted_entities,
@@ -1090,10 +1128,12 @@ class CollaborationMap(Biso):
 
             print(f"{len(self.data)} unique institutions to plot")
 
+            self.generate_plot_info()
             stats = {
                 'collaborations_nb': collaborations_nb,
                 'institutions_nb': institutions_nb,
-                'countries_nb': countries_nb
+                'countries_nb': countries_nb,
+                'info': self.info
             }
 
             if collaborations_nb == 0:
@@ -1110,7 +1150,8 @@ class CollaborationMap(Biso):
             stats = {
                 'collaborations_nb': self._("Error"),
                 'institutions_nb': self._("Error"),
-                'countries_nb': self._("Error")
+                'countries_nb': self._("Error"),
+                'info': self._("Error")
             }
             return stats
 
@@ -1287,16 +1328,20 @@ class CollaborationNames(Biso):
 
         try:
             # Get count of each structure id in publications
-            structs_facet_url=(
+            structs_facet_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
-                f"facet.limit=10000"
+                f"facet.limit=10000&facet.mincount=1&stats=true&"
+                "stats.field={!count=true+cardinality=true}structId_i"
             )
-            structs_id_facets=requests.get(structs_facet_url).json()
-            structs_id_facets = structs_id_facets.get('facet_counts', {}).get('facet_fields', {}).get('structId_i', [])
+            res = requests.get(structs_facet_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('structId_i', {}).
+                                     get('cardinality', 0))
+            structs_id_facets = res.get('facet_counts', {}).get('facet_fields', {}).get('structId_i', [])
             if not structs_id_facets:
                 self.data_status = DataStatus.NO_DATA
-                return
+                self.generate_plot_info()
+                return {"info": self.info}
             structs_id_count = {
                 struct_id: count for struct_id, count in zip(structs_id_facets[::2], structs_id_facets[1::2])
             }
@@ -1327,7 +1372,8 @@ class CollaborationNames(Biso):
                 ]
             if not struct_list:
                 self.data_status = DataStatus.NO_DATA
-                return
+                self.generate_plot_info()
+                return {"info": self.info}
 
             self.data = {
                 format_structure_name(struct['label_s'], struct.get('country_s', None)):
@@ -1337,12 +1383,14 @@ class CollaborationNames(Biso):
             # sort values
             self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
             self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
 class Conferences(Biso):
@@ -1401,13 +1449,20 @@ class Conferences(Biso):
             return conf_name
 
         try:
-            facet_url=(
+            stats_url = (
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                "docType_s:(COMM)&wt=json&rows=0&stats=true&stats.field={!count=true+cardinality=true}conferenceTitle_s"
+            )
+            res = requests.get(stats_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('conferenceTitle_s', {}).
+                                     get('cardinality', 0))
+            facet_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(COMM)&wt=json&rows=0&facet=true&facet.pivot=conferenceTitle_s,country_s&"
-                f"facet.limit={self.max_plotted_entities}"
+                f"facet.limit={self.max_plotted_entities}&facet.mincount=1"
             )
-            facets=requests.get(facet_url).json()
-            conferences_list = facets.get('facet_counts', {}).get('facet_pivot', {}).get(
+            res = requests.get(facet_url).json()
+            conferences_list = res.get('facet_counts', {}).get('facet_pivot', {}).get(
                 'conferenceTitle_s,country_s', [])
             if not conferences_list:
                 self.data_status = DataStatus.NO_DATA
@@ -1421,12 +1476,14 @@ class Conferences(Biso):
                     for conf in conferences_list
                 }
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 class EuropeanProjects(Biso):
     """
@@ -1463,21 +1520,26 @@ class EuropeanProjects(Biso):
             facet_url=(
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
                 f"&facet=true&facet.field=europeanProjectAcronym_s&facet.limit={self.max_plotted_entities}"
+                "&facet.mincount=1&stats=true&stats.field={!count=true+cardinality=true}europeanProjectAcronym_s"
             )
-            facets=requests.get(facet_url).json()
-            eu_projects_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('europeanProjectAcronym_s', [])
+            res = requests.get(facet_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('europeanProjectAcronym_s', {}).
+                                     get('cardinality', 0))
+            eu_projects_list=res.get('facet_counts', {}).get('facet_fields', {}).get('europeanProjectAcronym_s', [])
             self.data = {eu_projects_list[i]: eu_projects_list[i + 1] for i in range(0, len(eu_projects_list), 2)
                          if eu_projects_list[i + 1] != 0}
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
 class Journals(Biso):
@@ -1546,7 +1608,8 @@ class Journals(Biso):
                     'nb_works': self._("Error"),
                     'nb_works_found_in_bso': self._("Error"),
                     'nb_journals': self._("Error"),
-                    'bso_version': self.scanr_bso_version
+                    'bso_version': self.scanr_bso_version,
+                    'info': self._("Error")
                 }
                 return stats
             doi_ids = self.get_all_ids_with_cursor(id_type="doi")
@@ -1632,11 +1695,13 @@ class Journals(Biso):
 
             if len(self.data.index) == 0:
                 self.data_status = DataStatus.NO_DATA
+                self.generate_plot_info()
                 stats = {
                     'nb_works': nb_works,
                     'nb_works_found_in_bso': nb_found_works,
                     'nb_journals': 0,
-                    'bso_version': self.scanr_bso_version
+                    'bso_version': self.scanr_bso_version,
+                    'info': self.info
                 }
                 return stats
 
@@ -1685,11 +1750,13 @@ class Journals(Biso):
             else:
                 self.data_status = DataStatus.OK
 
+            self.generate_plot_info()
             stats = {
                 'nb_works': nb_works,
                 'nb_works_found_in_bso': nb_found_works,
                 'nb_journals': int(nb_journals),
-                'bso_version': self.scanr_bso_version
+                'bso_version': self.scanr_bso_version,
+                'info': self.info
             }
 
             return stats
@@ -1702,7 +1769,8 @@ class Journals(Biso):
                 'nb_works': self._("Error"),
                 'nb_works_found_in_bso': self._("Error"),
                 'nb_journals': self._("Error"),
-                'bso_version': self.scanr_bso_version
+                'bso_version': self.scanr_bso_version,
+                'info': self._("Error")
             }
             return stats
 
@@ -1773,27 +1841,32 @@ class JournalsHal(Biso):
         Fetch data about Journals from the HAL API.
         """
         try:
-            facet_url=(
+            facet_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
-                f"&facet=true&facet.field=journalTitle_s&facet.limit={self.max_plotted_entities}"
+                f"&facet=true&facet.field=journalTitle_s&facet.limit={self.max_plotted_entities}&facet.mincount=1&"
+                "stats=true&stats.field={!count=true+cardinality=true}journalTitle_s"
             )
-            facets=requests.get(facet_url).json()
-            jounals_list=facets.get('facet_counts', {}).get('facet_fields', {}).get('journalTitle_s', [])
+            res = requests.get(facet_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('journalTitle_s', {}).
+                                     get('cardinality', 0))
+            jounals_list=res.get('facet_counts', {}).get('facet_fields', {}).get('journalTitle_s', [])
             self.data = {
                 jounals_list[i][:75]+"... " if len(jounals_list[i]) > 75 else jounals_list[i]: jounals_list[i + 1]
-                for i in range(0, len(jounals_list), 2) if jounals_list[i + 1] != 0
+                for i in range(0, len(jounals_list), 2)
             }
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
                 self.data = dict(sorted(self.data.items(), key=lambda item: item[1]))
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
 class OpenAccessWorks(Biso):
@@ -1867,39 +1940,39 @@ class OpenAccessWorks(Biso):
                 columns=['ti_dans_hal', 'oa_hors_hal', 'non_oa'],
                 index=range(self.year_range[0], self.year_range[1] + 1)
             )
-            facet_url=(
+            facet_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND submitType_s:(file OR annex) AND docType_s:(ART OR COMM)&wt=json&"
                 f"rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
-            facets=requests.get(facet_url).json()
-            ti_numbers=facets.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            facets = requests.get(facet_url).json()
+            ti_numbers = facets.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
             for ind, i in enumerate(ti_numbers):
                 if isinstance(i,str):
                     self.data.loc[int(i),'ti_dans_hal']=ti_numbers[ind+1]
                 else:
                     pass
 
-            oa_url=(
+            oa_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND openAccess_bool:true AND submitType_s:notice AND docType_s:(ART OR COMM)&"
                 f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
-            oa=requests.get(oa_url).json()
-            oa_numbers=oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            oa = requests.get(oa_url).json()
+            oa_numbers = oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
             for ind, i in enumerate(oa_numbers):
                 if isinstance(i,str):
                     self.data.loc[int(i),'oa_hors_hal']=oa_numbers[ind+1]
                 else:
                     pass
 
-            non_oa_url=(
+            non_oa_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND openAccess_bool:false AND submitType_s:notice  AND docType_s:(ART OR COMM)&"
                 f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
-            non_oa=requests.get(non_oa_url).json()
-            non_oa_numbers=non_oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
+            non_oa = requests.get(non_oa_url).json()
+            non_oa_numbers = non_oa.get('facet_counts', {}).get('facet_fields', {}).get('publicationDateY_i', [])
             for ind, i in enumerate(non_oa_numbers):
                 if isinstance(i,str):
                     self.data.loc[int(i),'non_oa']=int(non_oa_numbers[ind+1])
@@ -1911,8 +1984,10 @@ class OpenAccessWorks(Biso):
             else:
                 self.data_status = DataStatus.OK
 
+            self.generate_plot_info()
             stats = {
                 'oa_works_period': f"{self.year_range[0]} - {self.year_range[1]}",
+                'info': self.info
             }
             return stats
         except Exception as e:
@@ -1922,6 +1997,7 @@ class OpenAccessWorks(Biso):
             self.data_status = DataStatus.ERROR
             stats = {
                 'oa_works_period': f"{self.year_range[0]} - {self.year_range[1]}",
+                'info': self._("Error")
             }
             return stats
 
@@ -2046,7 +2122,7 @@ class PrivateSectorCollaborations(Biso):
         try:
             if self.scanr_api_url is None:
                 self.data_status = DataStatus.ERROR
-                return
+                return {"info": self._("Error")}
             doi_ids = self.get_all_ids_with_cursor(id_type="doi")
             hal_ids = self.get_all_ids_with_cursor(id_type="hal")
             # format IDs for scanr:
@@ -2086,12 +2162,15 @@ class PrivateSectorCollaborations(Biso):
             else:
                 self.data_status = DataStatus.OK
 
+            self.generate_plot_info()
+            return {"info": self.info}
+
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
 
 
 class WorksType(Biso):
@@ -2122,12 +2201,22 @@ class WorksType(Biso):
         counts.
         """
         try:
+            stats_url = (
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                "docType_s:(COMM)&wt=json&rows=0&stats=true&stats.field={!count=true+cardinality=true}docType_s"
+            )
+            res = requests.get(stats_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('docType_s', {}).
+                                     get('cardinality', 0))
             facet_url=(
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} &"
                 f"wt=json&rows=0&facet=true&facet.pivot=docType_s&facet.limit={self.max_plotted_entities}"
+                "&facet.mincount=1"
             )
-            facets=requests.get(facet_url).json()
-            document_types_list=facets.get('facet_counts', {}).get('facet_pivot', {}).get('docType_s', [])
+            res = requests.get(facet_url).json()
+            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('docType_s', {}).
+                                     get('cardinality', 0))
+            document_types_list = res.get('facet_counts', {}).get('facet_pivot', {}).get('docType_s', [])
             if not document_types_list:
                 self.data_status = DataStatus.NO_DATA
             else:
@@ -2135,9 +2224,11 @@ class WorksType(Biso):
                     get_hal_doc_type_name(doc_type['value']): doc_type['count'] for doc_type in document_types_list
                 }
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
             traceback.print_exc()
             self.data = None
             self.data_status = DataStatus.ERROR
-            return
+            return {"info": self._("Error")}
