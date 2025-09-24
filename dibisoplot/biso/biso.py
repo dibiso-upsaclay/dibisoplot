@@ -331,7 +331,21 @@ class Biso:
             self.info += str(self.max_plotted_entities)
             self.info += self._(". In the API, ")
             self.info += str(self.n_entities_found)
-            self.info += self._(" entities were found.")
+            if self.__class__.__name__ == "AnrProjects" or self.__class__.__name__ == "EuropeanProjects":
+                self.info += self._(f" projects were found.")
+            elif self.__class__.__name__ == "Chapters":
+                self.info += self._(f" chapters were found.")
+            elif (self.__class__.__name__ == "CollaborationNames" or
+                    self.__class__.__name__ == "PrivateSectorCollaborations"):
+                self.info += self._(f" collaborations were found.")
+            elif self.__class__.__name__ == "Conferences":
+                self.info += self._(f" conferences were found.")
+            elif self.__class__.__name__ == "Journals" or self.__class__.__name__ == "JournalsHal":
+                self.info += self._(f" journals were found.")
+            elif self.__class__.__name__ == "WorksType":
+                self.info += self._(f" work types were found.")
+            else:
+                self.info += self._(" entities were found.")
             self.info += r"\\"
 
 
