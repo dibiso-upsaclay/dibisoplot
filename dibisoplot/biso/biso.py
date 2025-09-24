@@ -313,7 +313,21 @@ class Biso:
             self.info += r"\\"
         if (self.n_entities_found is not None and self.n_entities_found > self.max_plotted_entities and
                 not hide_n_entities_warning):
-            self.info += self._("The number of displayed entities was limited to ")
+            if self.__class__.__name__ == "AnrProjects" or self.__class__.__name__ == "EuropeanProjects":
+                self.info += self._(f"The number of displayed projects was limited to ")
+            elif self.__class__.__name__ == "Chapters":
+                self.info += self._(f"The number of displayed chapters was limited to ")
+            elif (self.__class__.__name__ == "CollaborationNames" or
+                    self.__class__.__name__ == "PrivateSectorCollaborations"):
+                self.info += self._(f"The number of displayed collaborations was limited to ")
+            elif self.__class__.__name__ == "Conferences":
+                self.info += self._(f"The number of displayed conferences was limited to ")
+            elif self.__class__.__name__ == "Journals" or self.__class__.__name__ == "JournalsHal":
+                self.info += self._(f"The number of displayed journals was limited to ")
+            elif self.__class__.__name__ == "WorksType":
+                self.info += self._(f"The number of displayed work types was limited to ")
+            else:
+                self.info += self._(f"The number of displayed entities was limited to ")
             self.info += str(self.max_plotted_entities)
             self.info += self._(". In the API, ")
             self.info += str(self.n_entities_found)
