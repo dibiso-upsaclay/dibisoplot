@@ -142,10 +142,10 @@ class Biso:
     )
     default_main_color = "blue"
     default_margin = dict(
-        l=5,
-        r=5,
-        b=5,
-        t=5,
+        l=15,
+        r=15,
+        b=15,
+        t=15,
         pad=4
     )
     default_max_entities = 1000 # default_max_requested_works
