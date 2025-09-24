@@ -891,7 +891,8 @@ class Chapters(Biso):
                     "publisher_s": self._("Publisher"),
                 })
                 self.data_status = DataStatus.OK
-            self.generate_plot_info()
+            # hide_n_entities_warning as this information is already displayed on the table
+            self.generate_plot_info(hide_n_entities_warning=True)
             return {"info": self.info}
         except Exception as e:
             print(f"Error fetching or formatting data: {e}")
