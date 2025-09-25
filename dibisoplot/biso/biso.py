@@ -1381,7 +1381,7 @@ class CollaborationNames(Biso):
                 if not self.countries_to_exclude:
                     facet_url = (
                     f"https://api.archives-ouvertes.fr/ref/structure/?q="
-                    f"docid:({" OR ".join(list(structs_id_count.keys())[i:i+500])}) AND "
+                    f"docid:({" OR ".join(list(structs_id_count.keys())[i:i+500])})&"
                     f"fl=docid,label_s,country_s&rows=10000"
                 )
                 else:
