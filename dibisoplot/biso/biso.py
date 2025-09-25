@@ -1360,12 +1360,12 @@ class CollaborationNames(Biso):
             structs_facet_url = (
                 f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
-                f"facet.limit=10000&facet.mincount=1&stats=true&"
-                "stats.field={!count=true+cardinality=true}structId_i"
+                f"facet.limit=10000&facet.mincount=1"
             )
             res = requests.get(structs_facet_url).json()
-            self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('structId_i', {}).
-                                     get('cardinality', 0))
+            # We don't set the self.n_entities_found value as calculating it would request too many API requests.
+            # It would require the full iterations for the 10k structures in the for loop below, and it would not give
+            # the right value for collections with more than 10k collaborations.
             structs_id_facets = res.get('facet_counts', {}).get('facet_fields', {}).get('structId_i', [])
             if not structs_id_facets:
                 self.data_status = DataStatus.NO_DATA
@@ -1399,6 +1399,9 @@ class CollaborationNames(Biso):
                     struct for struct in facets_res if struct['docid'] in list(structs_id_count.keys())[i:i+500]
                                                        and struct.get('country_s') not in self.countries_to_exclude
                 ]
+                # if we found more structures than the number to plot, stop here to save useless API requests
+                if len(struct_list) >= self.max_plotted_entities:
+                    break
             if not struct_list:
                 self.data_status = DataStatus.NO_DATA
                 self.generate_plot_info()
