@@ -324,6 +324,8 @@ class Biso:
                 self.info += self._(f"The number of displayed conferences was limited to ")
             elif self.__class__.__name__ == "Journals" or self.__class__.__name__ == "JournalsHal":
                 self.info += self._(f"The number of displayed journals was limited to ")
+            elif self.__class__.__name__ == "WorksBibtex":
+                self.info += self._(f"The number of displayed works was limited to ")
             elif self.__class__.__name__ == "WorksType":
                 self.info += self._(f"The number of displayed work types was limited to ")
             else:
@@ -2273,6 +2275,7 @@ class WorksBibtex(Biso):
                 self.data_status = DataStatus.NO_DATA
             else:
                 self.data_status = DataStatus.OK
+            self.generate_plot_info()
             return {"info": self.info}
         except Exception as e:
             logging.error(f"Error fetching HAL bibtex data: {e}")
