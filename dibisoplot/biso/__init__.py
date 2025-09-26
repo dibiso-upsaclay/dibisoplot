@@ -9,6 +9,7 @@ from dibisoplot.biso.biso import Journals
 from dibisoplot.biso.biso import JournalsHal
 from dibisoplot.biso.biso import OpenAccessWorks
 from dibisoplot.biso.biso import PrivateSectorCollaborations
+from dibisoplot.biso.biso import WorksBibtex
 from dibisoplot.biso.biso import WorksType
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "JournalsHal",
     "OpenAccessWorks",
     "PrivateSectorCollaborations",
+    "WorksBibtex",
     "WorksType",
 ]

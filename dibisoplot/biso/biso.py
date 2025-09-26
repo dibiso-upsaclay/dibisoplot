@@ -823,13 +823,16 @@ class AnrProjects(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about ANR projects from the HAL API.
 
         This method queries the API to get the list of ANR projects and their counts.
         The data is stored in the `data` attribute as a dictionary where keys are ANR project acronyms
         and values are their respective counts.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             facet_url = (
@@ -860,6 +863,8 @@ class AnrProjects(Biso):
 class Chapters(Biso):
     """
     A class to fetch and generate a table of book chapters.
+
+    :cvar figure_file_extension: The file extension for the figures ("tex" for LaTeX file).
     """
 
     figure_file_extension = "tex"
@@ -879,13 +884,16 @@ class Chapters(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about book chapters from the HAL API.
 
         This method queries the API to get the list of book chapters and their metadata.
         The data is stored in the `data` attribute as a pandas DataFrame with columns for title (`title_s`),
         book title (`bookTitle_s`), and publisher (`publisher_s`).
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             url = (
@@ -1083,12 +1091,15 @@ class CollaborationMap(Biso):
             self.zoom_lon_range = zoom_lon_range
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about collaborations from the HAL API and OpenAlex API.
 
         This method queries the API to get the list of collaborations and their metadata.
         It processes the data to create a DataFrame with latitude, longitude, and other relevant information.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             # get the list of DOI from HAL:
@@ -1324,13 +1335,16 @@ class CollaborationNames(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about collaboration names from the HAL API only.
 
         This method queries the API to get the list of collaboration names and their counts.
         It processes the data to create a dictionary where keys are formatted structure names (including country flags)
         and values are their respective counts.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         def format_structure_name(struct_name: str, country_code: str) -> str:
             """
@@ -1447,13 +1461,16 @@ class Conferences(Biso):
         """
         super().__init__(lab, year, **kwargs)
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about conferences from the HAL API.
 
         This method queries the API to get the list of conferences and their counts.
         It processes the data to create a dictionary where keys are formatted conference names (including country flags)
         and values are their respective counts.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         def format_conference_name(conf_name: str, country_code: str | None) -> str:
             """
@@ -1540,13 +1557,16 @@ class EuropeanProjects(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about European projects from the HAL API.
 
         This method queries the API to get the list of European projects and their counts.
         The data is stored in the `data` attribute as a dictionary where keys are European project acronyms
         and values are their respective counts.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             facet_url=(
@@ -1577,6 +1597,8 @@ class EuropeanProjects(Biso):
 class Journals(Biso):
     """
     A class to fetch and generate a table of journals.
+
+    :cvar figure_file_extension: The file extension for the figures ("tex" for LaTeX file).
     """
 
     figure_file_extension = "tex"
@@ -1594,9 +1616,12 @@ class Journals(Biso):
         """
         super().__init__(lab, year, **kwargs)
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about journals from the API.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         def format_bso_currency(currency):
             if currency == 'USD':
@@ -1868,9 +1893,12 @@ class JournalsHal(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about Journals from the HAL API.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             facet_url = (
@@ -1960,12 +1988,15 @@ class OpenAccessWorks(Biso):
         self.year_range = year_range
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about open access works from the HAL API.
 
         This method queries the API to get the count of open access works for each year in the specified year range.
         The data is stored in the `data` attribute as a pandas DataFrame with counts for different open access statuses.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             self.data=pd.DataFrame(
@@ -2147,9 +2178,12 @@ class PrivateSectorCollaborations(Biso):
         """
         super().__init__(lab, year, **kwargs)
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about PrivateSectorCollaborations from the API.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             if self.scanr_api_url is None:
@@ -2205,6 +2239,65 @@ class PrivateSectorCollaborations(Biso):
             return {"info": self._("Error")}
 
 
+class WorksBibtex(Biso):
+    """
+    A class to fetch the works of a HAL collection and create the bibtex string.
+
+    :cvar figure_file_extension: The file extension for the figures ("bib" for LaTeX bibtex file).
+    """
+
+    figure_file_extension = "bib"
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch the bibtex data from HAL.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        logging.info("Fetching HAL bibtex data...")
+        try:
+            url = (f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&"
+                   f"wt=json&rows=0")
+            self.n_entities_found = requests.get(url).json()["response"]["numFound"]
+            if self.max_plotted_entities > 10000:
+                logging.warning(
+                    f"Max entities set to {self.max_plotted_entities}, but HAL API only allows up to 10000."
+                    f"Setting self.max_plotted_entities to 10k and getting only 10k bibtex elements"
+                )
+                self.max_plotted_entities = 10000
+            url = (f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&"
+                   f"wt=bibtex&rows={self.max_plotted_entities}")
+            self.data = requests.get(url).text
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            return {"info": self.info}
+        except Exception as e:
+            logging.error(f"Error fetching HAL bibtex data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
+
+
+    def get_figure(self) -> str:
+        """
+        Generate a LaTeX bibtex file.
+
+        :return: LaTeX bibtex string with all the references of the HAL collection.
+        :rtype: str
+        """
+        if self.data_status == DataStatus.NOT_FETCHED:
+            self.fetch_data()
+        if self.data_status == DataStatus.NO_DATA:
+            return "% " + self._(self._("No data"))
+        if self.data_status == DataStatus.ERROR:
+            return "% " + self._(self._("Error while making the bibliography"))
+        return self.data
+
+
 class WorksType(Biso):
     """
     A class to fetch and plot data about work types.
@@ -2224,13 +2317,16 @@ class WorksType(Biso):
         super().__init__(lab, year, **kwargs)
 
 
-    def fetch_data(self):
+    def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about work types from the HAL API.
 
         This method queries the API to get the list of work types and their counts.
         It processes the data to create a dictionary where keys are work type names and values are their respective
         counts.
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
         """
         try:
             stats_url = (
