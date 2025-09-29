@@ -1785,7 +1785,7 @@ class Journals(Biso):
                     "nb_works": len(group),
                     "is_oa_on_journal": ' '.join(group['is_oa_on_journal']),
                     "is_oa_on_repository": ' '.join(group['is_oa_on_repository']),
-                    "paid_apc": ', '.join(group['paid_apc'].dropna().unique())
+                    "paid_apc": ', '.join(group['paid_apc'].dropna())
                 }
                 return pd.Series(merged_data)
 
