@@ -847,6 +847,8 @@ class AnrProjects(Biso):
                                      get('cardinality', 0))
             anr_projects_list = res.get('facet_counts', {}).get('facet_fields', {}).get('anrProjectAcronym_s', [])
             self.data = {anr_projects_list[i]: anr_projects_list[i + 1] for i in range(0, len(anr_projects_list), 2)}
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
@@ -1582,6 +1584,8 @@ class EuropeanProjects(Biso):
             eu_projects_list=res.get('facet_counts', {}).get('facet_fields', {}).get('europeanProjectAcronym_s', [])
             self.data = {eu_projects_list[i]: eu_projects_list[i + 1] for i in range(0, len(eu_projects_list), 2)
                          if eu_projects_list[i + 1] != 0}
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
@@ -2224,6 +2228,8 @@ class PrivateSectorCollaborations(Biso):
                             collaborations[name] += 1
 
             self.data = dict(collaborations)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
 
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
