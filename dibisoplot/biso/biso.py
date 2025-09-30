@@ -1790,7 +1790,7 @@ class Journals(Biso):
                 return pd.Series(merged_data)
 
             self.data = self.data.groupby("journal_name").apply(merge_cells, include_groups=False).reset_index(
-                drop=True).sort_values("nb_works", ascending=False)
+                drop=True).sort_values(["nb_works", "paid_apc"], ascending=[False, False])
             # move unspecified journals to the end
             idx = self.data.index.tolist() # copy index
             # find index of the Unspecified journal
