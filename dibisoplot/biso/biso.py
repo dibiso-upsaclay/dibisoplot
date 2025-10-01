@@ -29,8 +29,9 @@ from dibisoplot.translation import get_translator
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
-# catch useless warnings
-warnings.filterwarnings("ignore", message="No known latex representation for character", module="pylatexenc")
+# catch useless warning logs, e.g.:
+# WARNING:pylatexenc.latexencode._unicode_to_latex_encoder:No known latex representation for character
+logging.getLogger('pylatexenc').setLevel(logging.ERROR)
 
 
 class DataStatus(Enum):
