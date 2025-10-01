@@ -30,7 +30,8 @@ dependencies = [
     "requests",
     "emoji-country-flag",
     "openalex-analysis >= 0.14.1",
-    "elasticsearch>7,<9"
+    "elasticsearch>7,<9",
+    "pylatexenc"
 ]
 requires-python = ">=3.10"
 

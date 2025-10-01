@@ -8,6 +8,7 @@ import logging
 import warnings
 from collections import defaultdict
 import traceback
+import re
 
 from collections import Counter
 from datetime import datetime
@@ -20,12 +21,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 from elasticsearch import Elasticsearch
+from pylatexenc.latexencode import unicode_to_latex
 
 from dibisoplot.translation import get_translator
 
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
+
+# catch useless warnings
+warnings.filterwarnings("ignore", message="No known latex representation for character", module="pylatexenc")
 
 
 class DataStatus(Enum):
@@ -2258,25 +2263,63 @@ class WorksBibtex(Biso):
 
     def fetch_data(self) -> dict[str, Any]:
         """
-        Fetch the bibtex data from HAL.
+        Fetch the data from HAL and convert it to bibtex.
+        The bibtex data returned by HAL is not valid; therefore, we need to create our own bibtex string.
+        The bibtex doesn't support mathematical expressions or other latex commands to avoid compilation errors.
+        This could be improved in the future to support mathematical expressions and other special characters.
 
         :return: The info about the fetched data.
         :rtype: dict[str, Any]
         """
-        logging.info("Fetching HAL bibtex data...")
+        def rep_cyr(text):
+            """
+            Replace cyrillic characters with question marks. Avoids errors in LaTeX when compiling.
+            """
+            return re.sub(r'[\u0400-\u04FF]', '?', text)
+
         try:
             url = (f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&"
                    f"wt=json&rows=0")
             self.n_entities_found = requests.get(url).json()["response"]["numFound"]
-            if self.max_plotted_entities > 10000:
+            if self.max_plotted_entities > 1000:
                 logging.warning(
-                    f"Max entities set to {self.max_plotted_entities}, but HAL API only allows up to 10000."
-                    f"Setting self.max_plotted_entities to 10k and getting only 10k bibtex elements"
+                    f"Max entities set to {self.max_plotted_entities}, but having more than 1000 entities in the "
+                    f"bibliography will take too long to compile with LaTeX. "
+                    f"Setting self.max_plotted_entities to 1000 and getting only 1000 elements from the API"
                 )
-                self.max_plotted_entities = 10000
-            url = (f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&"
-                   f"wt=bibtex&rows={self.max_plotted_entities}")
-            self.data = requests.get(url).text
+                self.max_plotted_entities = 1000
+            url = (
+                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&"
+                f"rows={self.max_plotted_entities}&fl=title_s,authFullName_s,uri_s,journalTitle_s,journalPublisher_s,"
+                f"volume_s,page_s,publicationDateY_i,doiId_s,halId_s,label_bibtex"
+            )
+            works = requests.get(url).json().get('response', {}).get('docs', [])
+            # Define regex pattern to extract the type of entry
+            type_pattern = r'@(\w+)'
+            self.data = {}
+            for work in works:
+                titles = work.get("title_s", [])
+                authors = [str(author) for author in work.get("authFullName_s", [""])]
+                # Extract the type of entry
+                type_match = re.search(type_pattern, str(work.get("label_bibtex", "")))
+                if type_match:
+                    entry_type = type_match.group(1)
+                else:
+                    entry_type = "misc"
+                ref = {
+                    "TITLE": unicode_to_latex(rep_cyr(str(titles[0] if len(titles) > 0 else ""))),
+                    "AUTHOR": unicode_to_latex(rep_cyr(" and ".join(authors))),
+                    "URL": str(work.get("uri_s", "")),
+                    "JOURNAL": unicode_to_latex(rep_cyr(str(work.get("journalTitle_s", "")))),
+                    "PUBLISHER": unicode_to_latex(rep_cyr(str(work.get("journalPublisher_s", "")))),
+                    "VOLUME": unicode_to_latex(rep_cyr(str(work.get("volume_s", "")))),
+                    "PAGES": unicode_to_latex(rep_cyr(str(work.get("page_s", "")))),
+                    "YEAR": unicode_to_latex(rep_cyr(str(work.get("publicationDateY_i", "")))),
+                    "DOI": unicode_to_latex(rep_cyr(str(work.get("doiId_s", "")))),
+                    "HAL_ID": unicode_to_latex(rep_cyr(str(work.get("halId_s", "")))),
+                    "bibtex_entry_type": entry_type
+                }
+                self.data[work['halId_s']] = ref
             if not self.data:
                 self.data_status = DataStatus.NO_DATA
             else:
@@ -2304,7 +2347,14 @@ class WorksBibtex(Biso):
             return "% " + self._(self._("No data"))
         if self.data_status == DataStatus.ERROR:
             return "% " + self._(self._("Error while making the bibliography"))
-        return self.data
+        bibtex = ""
+        for work in self.data.values():
+            bibtex += "@" + work['bibtex_entry_type'] + "{" + work['HAL_ID'] + ",\n"
+            for k,v in work.items():
+                if k != "bibtex_entry_type":
+                    bibtex += "  " + k + " = {" + v + "},\n"
+            bibtex += "}" + "\n\n"
+        return bibtex
 
 
 class WorksType(Biso):

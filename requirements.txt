@@ -7,3 +7,4 @@ requests
 emoji-country-flag
 openalex-analysis >= 0.14.1
 elasticsearch>7,<9
+pylatexenc
