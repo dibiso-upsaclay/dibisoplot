@@ -12,8 +12,7 @@ import re
 
 from collections import Counter
 from datetime import datetime
-from openalex_analysis.data import WorksData
-from openalex_analysis.plot import InstitutionsPlot
+from openalex_analysis.data import InstitutionsData, WorksData
 import flag
 import numpy as np
 import pandas as pd
@@ -1114,10 +1113,12 @@ class CollaborationMap(Biso):
         try:
             # get the list of DOI from HAL:
             article_dois = self.get_all_ids_with_cursor(id_type="doi")
+            article_dois.sort()  # sort the list to improve cache usage by openalex-analysis
 
             # Download articles metadata from OpenAlex:
             print(f"Downloading the metadata for {len(article_dois)} DOIs from OpenAlex...")
-            works = WorksData().get_multiple_works_from_doi(article_dois, return_dataframe=False)
+            # works = WorksData().get_multiple_works_from_doi(article_dois, return_dataframe=False)
+            works = WorksData(entities_from_id_list = article_dois).entities_df.to_dict(orient = 'records')
             works = [work for work in works if work is not None]
             print(f"{len(works)} works retrieved successfully from OpenAlex out of {len(article_dois)}")
 
@@ -1137,6 +1138,7 @@ class CollaborationMap(Biso):
             print(f"{len(institutions_id)} unique institutions with which we collaborated on works")
             # remove the https://openalex.org/ at the beginning
             institutions_id = [institution_id[21:] for institution_id in institutions_id]
+            institutions_id.sort()  # sort the list to improve cache usage by openalex-analysis
             # create dictionaries with the institution id as key and lon, lat and name as item
             institutions_name = {}
             institutions_lat = {}
@@ -1152,7 +1154,9 @@ class CollaborationMap(Biso):
             if not institutions_id:
                 institutions = []
             else:
-                institutions = InstitutionsPlot().get_multiple_entities_from_id(institutions_id, return_dataframe=False)
+                institutions = InstitutionsData(
+                    entities_from_id_list = institutions_id
+                ).entities_df.to_dict(orient = 'records')
             for institution in institutions:
                 if institution['geo']['country'] not in self.countries_to_ignore:
                     institutions_name[institution['id']] = institution['display_name']
