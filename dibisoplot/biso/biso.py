@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Any
 import math
 import logging
@@ -19,9 +18,8 @@ import requests
 from elasticsearch import Elasticsearch
 from pylatexenc.latexencode import unicode_to_latex
 
-from dibisoplot.translation import get_translator
-from dibisoplot.utils import get_hal_doc_type_name, get_empty_plot_with_message, get_empty_latex_with_message
-from dibisoplot.utils import get_bar_width, DataStatus
+from dibisoplot.utils import get_hal_doc_type_name
+from dibisoplot.dibisoplot import DataStatus, Dibisoplot
 
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
 import plotly.io as pio
@@ -32,92 +30,45 @@ pio.kaleido.scope.mathjax = None
 logging.getLogger('pylatexenc').setLevel(logging.ERROR)
 
 
-class Biso:
+class Biso(Dibisoplot):
     """
     Base class for generating plots and tables from data fetched from various APIs.
     The fetch methods are located in each child classes.
     This class is not designed to be called directly but rather to provide general methods to the different plot types.
 
-    :cvar orientation: Orientation for plots ('v' for vertical, 'h' for horizontal).
-    :cvar figure_file_extension: File extension of the figure (pdf, tex...).
-    :cvar default_barcornerradius: Default corner radius for bars in plots.
-    :cvar default_dynamic_min_height: Default minimum height for plots when the height is set dynamically.
-    :cvar default_dynamic_height_per_bar: Default height per bar for plots when the height is set dynamically.
-    :cvar default_dynamic_bar_width: Default width for bars in plots when the height is set dynamically.
     :cvar default_hal_cursor_rows_per_request: Default number of rows per request when using the cursor API.
-    :cvar default_height: Default height for plots.
-    :cvar default_legend_pos: Default position for the legend.
-    :cvar default_main_color: Default color for plots.
-    :cvar default_margin: Default margins for plots.
-    :cvar default_max_entities: Default maximum number of entities used to create the plot. Default 1000.
-        Set to None to disable the limit. This value limits the number of queried entities when doing analysis.
-        For example, when creating the collaboration map, it limits the number of works to query from HAL to extract the
-        collaborating institutions from.
-    :cvar default_max_plotted_entities: Maximum number of bars in the plot or rows in the table. Default to 25.
-    :cvar default_template: Default template for plots.
-    :cvar default_width: Default width for plots.
     """
 
-    orientation = 'v'
-    figure_file_extension = "pdf"
-
-    default_barcornerradius = 10
-    default_dynamic_min_height = 150
-    default_dynamic_height_per_bar = 25
-    default_dynamic_bar_width = 0.7
     default_hal_cursor_rows_per_request = 10000
-    default_height = 600
-    default_language = "fr"
-    default_legend_pos = dict(
-        x=1,
-        y=1,
-        xanchor='right',
-        yanchor='top'
-    )
-    default_main_color = "blue"
-    default_margin = dict(
-        l=15,
-        r=15,
-        b=15,
-        t=15,
-        pad=4
-    )
-    default_max_entities = 1000 # default_max_requested_works
-    default_max_plotted_entities = 25
-    default_scanr_bso_version = "2024Q4"
-    default_scanr_chunk_size = 50
-    default_template = "simple_white"
-    default_text_position = "outside"
-    default_width = 800
 
     def __init__(
             self,
             entity_id,
             year: int | None = None,
-            barcornerradius: int = default_barcornerradius,
+            barcornerradius: int = 10,
             dynamic_height: bool = True,
-            dynamic_min_height: int | float = default_dynamic_min_height,
-            dynamic_height_per_bar: int | float = default_dynamic_height_per_bar,
-            height: int = default_height,
-            language: str = default_language,
+            dynamic_min_height: int | float = 150,
+            dynamic_height_per_bar: int | float = 25,
+            height: int = 600,
+            language: str = "fr",
             legend_pos: dict = None,
-            main_color: str = default_main_color,
+            main_color: str = "blue",
             margin: dict = None,
-            max_entities: int | None = default_max_entities,
-            max_plotted_entities: int = default_max_plotted_entities,
+            max_entities: int | None = 1000,
+            max_plotted_entities: int = 25,
             scanr_api_password: str | None = None,
             scanr_api_port: int = 443,
             scanr_api_scheme: str | None = "https",
             scanr_api_url: str | None = None,
             scanr_api_username: str | None = None,
             scanr_bso_index: str | None = None,
-            scanr_bso_version: str = default_scanr_bso_version,
-            scanr_chunk_size: int = default_scanr_chunk_size,
+            scanr_bso_version: str = "2024Q4",
+            scanr_chunk_size: int = 50,
             scanr_publications_index: str | None = None,
-            template: str = default_template,
-            text_position: str = default_text_position,
+            template: str = "simple_white",
+            text_position: str = "outside",
             title: str | None = None,
-            width: int = default_width,
+            width: int = 800,
     ):
         """
         Initialize the Biso class with the given parameters.
@@ -177,29 +128,24 @@ class Biso:
         :param width: Width of the plot.
         :type width: int, optional
         """
-        self.entity_id = entity_id
-        if year is None:
-            # get current year
-            self.year = datetime.now().year
-        else:
-            self.year = year
-        self.barcornerradius = barcornerradius
-        self.dynamic_height = dynamic_height
-        self.dynamic_min_height = dynamic_min_height
-        self.dynamic_height_per_bar = dynamic_height_per_bar
-        self.height = height
-        self.language = language
-        if legend_pos is None:
-            self.legend_pos = self.default_legend_pos
-        else:
-            self.legend_pos = legend_pos
-        self.main_color = main_color
-        if margin is None:
-            self.margin = self.default_margin
-        else:
-            self.margin = margin
-        self.max_entities = max_entities
-        self.max_plotted_entities = max_plotted_entities
+        super().__init__(
+            entity_id = entity_id,
+            year = year,
+            barcornerradius = barcornerradius,
+            dynamic_height = dynamic_height,
+            dynamic_min_height = dynamic_min_height,
+            dynamic_height_per_bar = dynamic_height_per_bar,
+            height = height,
+            language = language,
+            legend_pos = legend_pos,
+            main_color = main_color,
+            max_entities = max_entities,
+            max_plotted_entities = max_plotted_entities,
+            template = template,
+            text_position = text_position,
+            title = title,
+            width = width
+        )
         self.scanr_api_password = scanr_api_password
         self.scanr_api_port = scanr_api_port
         self.scanr_api_scheme = scanr_api_scheme
@@ -209,254 +155,6 @@ class Biso:
         self.scanr_bso_version = scanr_bso_version
         self.scanr_chunk_size = scanr_chunk_size
         self.scanr_publications_index = scanr_publications_index
-        self.template = template
-        self.text_position = text_position
-        self.title = title
-        self.width = width
-
-        self.data = None
-        self.data_status = DataStatus.NOT_FETCHED
-        self.n_entities_found = None
-        # self.max_entities_reached is set to True if the number of processed entities was limited by max_entities
-        self.max_entities_reached = False
-        self.info = ""
-
-        self._ = get_translator(language = self.language)
-
-
-    def generate_plot_info(
-            self,
-            hide_max_entities_reached_warning: bool = False,
-            hide_n_entities_warning: bool = False
-    ):
-        """
-        Generate the plot info.
-        This information is used to print a warning on the report.
-
-        :param hide_max_entities_reached_warning: If True, the warning about the maximum number of entities processed
-            is not displayed.
-        :type hide_max_entities_reached_warning: bool, optional
-        :param hide_n_entities_warning: If True, the warning about the number of entities found is not displayed.
-        :type hide_n_entities_warning: bool, optional
-        """
-        if self.max_entities_reached and not hide_max_entities_reached_warning:
-            self.info += r"\emoji{warning} "
-            self.info += self._("The data processing was limited by the maximum number of downloadable entities (")
-            self.info += str(self.max_entities)
-            self.info += self._("). Data can be missing or values can be lower than the real values. ")
-            self.info += r"\\"
-        if (self.n_entities_found is not None and self.n_entities_found > self.max_plotted_entities and
-                not hide_n_entities_warning):
-            if self.__class__.__name__ == "AnrProjects" or self.__class__.__name__ == "EuropeanProjects":
-                self.info += self._(f"The number of displayed projects was limited to ")
-            elif self.__class__.__name__ == "Chapters":
-                self.info += self._(f"The number of displayed chapters was limited to ")
-            elif (self.__class__.__name__ == "CollaborationNames" or
-                    self.__class__.__name__ == "PrivateSectorCollaborations"):
-                self.info += self._(f"The number of displayed collaborations was limited to ")
-            elif self.__class__.__name__ == "Conferences":
-                self.info += self._(f"The number of displayed conferences was limited to ")
-            elif self.__class__.__name__ == "Journals" or self.__class__.__name__ == "JournalsHal":
-                self.info += self._(f"The number of displayed journals was limited to ")
-            elif self.__class__.__name__ == "WorksBibtex":
-                self.info += self._(f"The number of displayed works was limited to ")
-            elif self.__class__.__name__ == "WorksType":
-                self.info += self._(f"The number of displayed work types was limited to ")
-            else:
-                self.info += self._(f"The number of displayed entities was limited to ")
-            self.info += str(self.max_plotted_entities)
-            self.info += self._(". In the API, ")
-            self.info += str(self.n_entities_found)
-            if self.__class__.__name__ == "AnrProjects" or self.__class__.__name__ == "EuropeanProjects":
-                self.info += self._(f" projects were found.")
-            elif self.__class__.__name__ == "Chapters":
-                self.info += self._(f" chapters were found.")
-            elif (self.__class__.__name__ == "CollaborationNames" or
-                    self.__class__.__name__ == "PrivateSectorCollaborations"):
-                self.info += self._(f" collaborations were found.")
-            elif self.__class__.__name__ == "Conferences":
-                self.info += self._(f" conferences were found.")
-            elif self.__class__.__name__ == "Journals" or self.__class__.__name__ == "JournalsHal":
-                self.info += self._(f" journals were found.")
-            elif self.__class__.__name__ == "WorksType":
-                self.info += self._(f" work types were found.")
-            else:
-                self.info += self._(" entities were found.")
-            self.info += r"\\"
-
-
-    def get_no_data_plot(self) -> go.Figure:
-        """Create the error plot."""
-        return get_empty_plot_with_message(self._("No data"))
-
-
-    def get_error_plot(self) -> go.Figure:
-        """Create the error plot."""
-        return get_empty_plot_with_message(self._("Error while making the plot"))
-
-
-    def get_no_data_latex(self) -> str:
-        """Create the error LaTeX code."""
-        return get_empty_latex_with_message(self._("No data"))
-
-
-    def get_error_latex(self) -> str:
-        """Create the error LaTeX code."""
-        return get_empty_latex_with_message(self._("Error while making the table"))
-
-
-    def dataframe_to_longtable(
-            self,
-            table_df,
-            alignments: list | None = None,
-            caption: str | None = None,
-            label: str | None = None,
-            vertical_lines: bool = True,
-            classic_horizontal_lines: bool = False,
-            minimal_horizontal_lines: bool = True,
-            max_plotted_entities: int | None = None,
-    ) -> str:
-        """
-        Convert a pandas DataFrame to LaTeX longtable code without document headers.
-
-        This function generates LaTeX code for a longtable from a pandas DataFrame. It handles various formatting options
-        such as alignments, captions, labels, and lines between rows and columns.
-
-        :param table_df: pandas DataFrame to convert.
-        :type table_df: pd.DataFrame
-        :param alignments: List of column alignments (e.g., ['l', 'c', 'r']).
-        :type alignments: list | None, optional
-        :param caption: Caption for the table.
-        :type caption: str | None , optional
-        :param label: Label for referencing the table.
-        :type label: str | None, optional
-        :param vertical_lines: Whether to include vertical lines between columns.
-        :type vertical_lines: bool, optional
-        :param classic_horizontal_lines: Whether to include horizontal lines between rows in a classic style.
-        :type classic_horizontal_lines: bool, optional
-        :param minimal_horizontal_lines: Whether to include minimal horizontal lines between rows.
-        :type minimal_horizontal_lines: bool, optional
-        :param max_plotted_entities: Maximum number of entities to show in the table. If None, show all entities in the
-            table.
-        :type max_plotted_entities: int | None, optional
-        :return: LaTeX code for the longtable (without document headers).
-        :rtype: str
-        :raises AttributeError: If both classic_horizontal_lines and minimal_horizontal_lines are True.
-        :raises ValueError: If the number of alignments does not match the number of columns.
-        """
-        def escape_latex(s: str) -> str:
-            """
-            Escape LaTeX special characters in a string.
-
-            :param s: String to escape.
-            :type s: str
-            :return: Escaped string with LaTeX special characters.
-            :rtype: str
-            """
-            if pd.isna(s):
-                return ''
-            s = str(s)
-            replacements = {
-                '&': '\\&',
-                '%': '\\%',
-                '$': '\\$',
-                '#': '\\#',
-                '_': '\\_',
-            }
-            for char, escaped in replacements.items():
-                s = s.replace(char, escaped)
-            return s
-
-        if table_df.empty:
-            latex_lines = [self._("No data")]
-        else:
-            if classic_horizontal_lines and minimal_horizontal_lines:
-                raise AttributeError("classic_horizontal_lines and minimal_horizontal_lines cannot both be True")
-
-            num_cols = len(table_df.columns)
-
-            if alignments is None:
-                alignments = ['l'] * num_cols
-            else:
-                if len(alignments) != num_cols:
-                    raise ValueError("Number of alignments must match number of columns")
-
-            if vertical_lines:
-                col_spec = '|' + '|'.join(alignments) + '|'
-            else:
-                col_spec = ''.join(alignments)
-
-            latex_lines = []
-
-            # Begin longtable
-            latex_lines.append(f'\\begin{{longtable}}{{{col_spec}}}')
-
-            # Add caption and label after header (but before any \hline)
-            if caption is not None:
-                latex_lines.append(f'\\caption{{{escape_latex(caption)}}}')
-            if label is not None:
-                latex_lines.append(f'\\label{{{label}}}\\\\')
-
-            if classic_horizontal_lines:
-                latex_lines.append('\\hline')
-            if minimal_horizontal_lines:
-                latex_lines.append('\\toprule')
-
-            # Add header row
-            header = table_df.columns.tolist()
-            header_line = ' & '.join([escape_latex(str(x)) for x in header]) + ' \\\\'
-            latex_lines.append(header_line)
-
-            if classic_horizontal_lines:
-                latex_lines.append('\\hline')
-            if minimal_horizontal_lines:
-                latex_lines.append('\\midrule')
-
-            # Add data rows with horizontal lines between them if specified
-            i = 0
-            for i, (_, row) in enumerate(table_df.iterrows()):
-                # add the number of displayed rows when there are too many rows in dataframe (aka there was no limit in
-                # API requests)
-                if max_plotted_entities is not None and i >= max_plotted_entities:
-                    # if we are not in the case that the number of entities found in the API is higher than the number
-                    # of returned entities by the API
-                    if not(self.n_entities_found is not None and len(table_df.index) < self.n_entities_found):
-                        latex_lines.append(
-                            '\\textbf{' + self._("Only") + ' ' + str(i) + ' ' + self._("displayed lines out of") + ' ' +
-                            str(len(table_df.index)) + '.} \\\\'
-                        )
-                    break
-                row_values = []
-                for item in row:
-                    row_values.append(escape_latex(item) if not pd.isna(item) else '')
-                row_line = ' & '.join(row_values) + ' \\\\'
-                latex_lines.append(row_line)
-
-                # Add \hline after each data row except the last one
-                if classic_horizontal_lines and i < len(table_df) - 1:
-                    latex_lines.append('\\hline')
-            # add the number of displayed rows when more entities where found in the API compared to the number of rows
-            # in the dataframe
-            if self.n_entities_found is not None and len(table_df.index) < self.n_entities_found:
-                latex_lines.append(
-                    '\\textbf{' + self._("Only") + ' ' + str(i + 1) + ' ' + self._("displayed lines out of") + ' ' +
-                    str(self.n_entities_found) + '.} \\\\'
-                )
-
-            # Add a final \hline
-            if classic_horizontal_lines:
-                latex_lines.append('\\hline')
-            if minimal_horizontal_lines:
-                latex_lines.append('\\bottomrule')
-
-            # End longtable
-            latex_lines.append('\\end{longtable}')
-
-        latex_lines.append('')
-
-        latex_code = '\n'.join(latex_lines)
-
-        return latex_code
 
 
     def get_all_ids_with_cursor(self, id_type = 'doi'):
@@ -668,72 +366,6 @@ class Biso:
                 res += self.get_works_from_es_index_from_id(index, chunk_id, fields_to_retrieve, es)
 
         return res
-
-
-
-    def get_figure(self) -> go.Figure:
-        """
-        Generate a bar plot based on the fetched data.
-
-        :return: The plotly figure.
-        :rtype: go.Figure
-        """
-        if self.data_status == DataStatus.NOT_FETCHED:
-            self.fetch_data()
-        if self.data_status == DataStatus.NO_DATA:
-            return self.get_no_data_plot()
-        if self.data_status == DataStatus.ERROR:
-            return self.get_error_plot()
-
-        # keep only the first max_plotted_entities items in the dictionary
-        self.data =  dict(list(self.data.items())[-self.max_plotted_entities:])
-
-        fig = go.Figure()
-
-        if self.orientation == 'v':
-            x_values = list(self.data.keys())
-            y_values = list(self.data.values())
-        else:
-            x_values = list(self.data.values())
-            y_values = list(self.data.keys())
-
-        if self.dynamic_height and self.orientation == 'h':
-            height = self.dynamic_height_per_bar*len(self.data.keys())
-            if height < self.dynamic_min_height:
-                height = self.dynamic_min_height
-            bar_width = self.default_dynamic_bar_width
-        else:
-            height = self.height
-            bar_width = get_bar_width(len(self.data.keys()))
-
-        # Add a bar for each type
-        fig.add_trace(go.Bar(
-            x=x_values,
-            y=y_values,
-            marker_color=self.main_color,
-            orientation=self.orientation,
-            text=list(self.data.values()),
-            textposition=self.text_position,
-            textangle=0,
-            cliponaxis=False,
-            width=bar_width,
-        ))
-
-        # Update layout for better visualization
-        fig.update_layout(
-            barmode='stack',
-            barcornerradius=self.barcornerradius,
-            width=self.width,
-            height=height,
-            template=self.template,
-            legend=self.legend_pos,
-            margin=self.margin,
-            # xaxis = dict(dtick = 1), # TODO: fix for big values
-        )
-        if self.title is not None:
-            fig.update_layout(title=self.title)
-
-        return fig
 
 
 class AnrProjects(Biso):

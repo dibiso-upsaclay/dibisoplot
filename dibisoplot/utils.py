@@ -5,15 +5,6 @@ import warnings
 
 import plotly.graph_objects as go
 
-
-class DataStatus(Enum):
-    """Status of the data."""
-    NOT_FETCHED = 0
-    OK = 1
-    NO_DATA = 2
-    ERROR = 3
-
-
 hal_doc_types_names_mapping = tomllib.load(BytesIO(pkgutil.get_data(__name__, "HAL_doc_types_names.toml")))
 
 
