@@ -1,9 +1,6 @@
 from enum import Enum
-from io import BytesIO
 from typing import Any
 import math
-import pkgutil
-import tomllib
 import logging
 import warnings
 from collections import defaultdict
@@ -23,6 +20,8 @@ from elasticsearch import Elasticsearch
 from pylatexenc.latexencode import unicode_to_latex
 
 from dibisoplot.translation import get_translator
+from dibisoplot.utils import get_hal_doc_type_name, get_empty_plot_with_message, get_empty_latex_with_message
+from dibisoplot.utils import get_bar_width, DataStatus
 
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
 import plotly.io as pio
@@ -31,76 +30,6 @@ pio.kaleido.scope.mathjax = None
 # catch useless warning logs, e.g.:
 # WARNING:pylatexenc.latexencode._unicode_to_latex_encoder:No known latex representation for character
 logging.getLogger('pylatexenc').setLevel(logging.ERROR)
-
-
-class DataStatus(Enum):
-    """Status of the data."""
-    NOT_FETCHED = 0
-    OK = 1
-    NO_DATA = 2
-    ERROR = 3
-
-
-hal_doc_types_names_mapping = tomllib.load(BytesIO(pkgutil.get_data(__name__, "HAL_doc_types_names.toml")))
-
-
-def get_hal_doc_type_name(name):
-    if name in hal_doc_types_names_mapping.keys():
-        return hal_doc_types_names_mapping[name]
-    else:
-        warnings.warn(f"Unknown HAL doc type name: {name}. Using raw name.")
-        parts = name.split('_')
-        return ' '.join([parts[0].capitalize()] + [part.lower() for part in parts[1:]])
-
-
-def get_empty_plot_with_message(message: str) -> go.Figure:
-    """Create an empty plot with a message."""
-    fig = go.Figure()
-    fig.add_annotation(text=message, showarrow=False)
-    fig.update_layout(showlegend=False, template="simple_white")
-    fig.update_xaxes(visible=False)
-    fig.update_yaxes(visible=False)
-    return fig
-
-
-def get_empty_latex_with_message(message: str) -> str:
-    """Create an empty plot with a message."""
-    latex_str = """
-\\setlength{\\fboxsep}{10pt}
-\\fbox{
-    \\parbox{\\textwidth}{
-        \\centering """+message+"""
-    }
-}
-"""
-    return latex_str
-
-
-# Calculate plot bar width depending on the number of bars on the plot, based on a linear interpolation of two examples
-max_width = 0.7
-n_bars_max_width = 10
-example_width = 0.25
-example_n_bars = 2
-a = (max_width - example_width)/(n_bars_max_width - example_n_bars)
-b = example_width - example_n_bars*(max_width - example_width)/(n_bars_max_width - example_n_bars)
-
-
-def get_bar_width(n_bars: int) -> int | float:
-    """
-    Calculate the width of bars in a plot based on the number of bars.
-
-    This function uses linear interpolation to determine the bar width based on the number of bars.
-    The interpolation is based on two examples: one with 10 bars and a width of 0.7, and another with 2 bars and a width
-    of 0.25.
-
-    :param n_bars: Number of bars in the plot.
-    :type n_bars: int
-    :return: Width of the bars.
-    :rtype: int | float
-    """
-    if n_bars >= n_bars_max_width:
-        return max_width
-    return a * n_bars + b
 
 
 class Biso:
@@ -163,7 +92,7 @@ class Biso:
 
     def __init__(
             self,
-            lab,
+            entity_id,
             year: int | None = None,
             barcornerradius: int = default_barcornerradius,
             dynamic_height: bool = True,
@@ -193,8 +122,8 @@ class Biso:
         """
         Initialize the Biso class with the given parameters.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param barcornerradius: Corner radius for bars in plots.
@@ -248,7 +177,7 @@ class Biso:
         :param width: Width of the plot.
         :type width: int, optional
         """
-        self.lab = lab
+        self.entity_id = entity_id
         if year is None:
             # get current year
             self.year = datetime.now().year
@@ -558,7 +487,7 @@ class Biso:
 
             # Build the cursor-based query URL
             cursor_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(ART OR COMM) AND {id_field}:[* TO *]&wt=json&rows={current_rows}&"
                 f"sort=docid asc&cursorMark={cursor_mark}&fl={id_field}"
             )
@@ -816,18 +745,18 @@ class AnrProjects(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the AnrProjects class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -843,7 +772,7 @@ class AnrProjects(Biso):
         """
         try:
             facet_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0&"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year}&wt=json&rows=0&"
                 f"facet=true&facet.field=anrProjectAcronym_s&facet.limit={self.max_plotted_entities}&facet.mincount=1&"
                 "stats=true&stats.field={!count=true+cardinality=true}anrProjectAcronym_s"
             )
@@ -879,18 +808,18 @@ class Chapters(Biso):
     figure_file_extension = "tex"
 
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the Chapters class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -906,7 +835,7 @@ class Chapters(Biso):
         """
         try:
             url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=*:*&fq=docType_s:COUV&"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=*:*&fq=docType_s:COUV&"
                 f"fq=producedDateY_i:{self.year}&rows={self.max_plotted_entities}&wt=json&indent=true&"
                 f"fl=title_s,bookTitle_s,publisher_s"
             )
@@ -999,7 +928,7 @@ class CollaborationMap(Biso):
 
     def __init__(
             self,
-            lab: str,
+            entity_id: str,
             year: int | None = None,
             countries_land_color: str | None = None,
             countries_lines_color: str | None = None,
@@ -1018,8 +947,8 @@ class CollaborationMap(Biso):
         """
         Initialize the CollaborationMap class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | None, optional
         :param countries_land_color: Color of the land in the map.
@@ -1089,7 +1018,7 @@ class CollaborationMap(Biso):
         self.resolution = resolution
         if width is None:
             width = self.default_width
-        super().__init__(lab, year, height=height, width=width, **kwargs)
+        super().__init__(entity_id, year, height=height, width=width, **kwargs)
         if zoom_lat_range is None:
             self.zoom_lat_range = self.default_zoom_lat_range
         else:
@@ -1329,12 +1258,12 @@ class CollaborationNames(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, countries_to_exclude: list[str] | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, countries_to_exclude: list[str] | None = None, **kwargs):
         """
         Initialize the CollaborationNames class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param countries_to_exclude: List of countries to exclude from the data.
@@ -1346,7 +1275,7 @@ class CollaborationNames(Biso):
         if countries_to_exclude is None:
             countries_to_exclude = []
         self.countries_to_exclude = countries_to_exclude
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -1386,7 +1315,7 @@ class CollaborationNames(Biso):
         try:
             # Get count of each structure id in publications
             structs_facet_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(ART OR COMM)&wt=json&rows=0&facet=true&facet.field=structId_i&"
                 f"facet.limit=10000&facet.mincount=1"
             )
@@ -1462,18 +1391,18 @@ class Conferences(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the Conferences class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -1513,14 +1442,14 @@ class Conferences(Biso):
 
         try:
             stats_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} AND "
                 "docType_s:(COMM)&wt=json&rows=0&stats=true&stats.field={!count=true+cardinality=true}conferenceTitle_s"
             )
             res = requests.get(stats_url).json()
             self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('conferenceTitle_s', {}).
                                      get('cardinality', 0))
             facet_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} AND "
                 f"docType_s:(COMM)&wt=json&rows=0&facet=true&facet.pivot=conferenceTitle_s,country_s&"
                 f"facet.limit={self.max_plotted_entities}&facet.mincount=1"
             )
@@ -1557,18 +1486,18 @@ class EuropeanProjects(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the EuropeanProjects class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -1584,7 +1513,7 @@ class EuropeanProjects(Biso):
         """
         try:
             facet_url=(
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
                 f"&facet=true&facet.field=europeanProjectAcronym_s&facet.limit={self.max_plotted_entities}"
                 "&facet.mincount=1&stats=true&stats.field={!count=true+cardinality=true}europeanProjectAcronym_s"
             )
@@ -1619,18 +1548,18 @@ class Journals(Biso):
 
     figure_file_extension = "tex"
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the Journals class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -1895,18 +1824,18 @@ class JournalsHal(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the JournalsHal class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -1918,7 +1847,7 @@ class JournalsHal(Biso):
         """
         try:
             facet_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year}&wt=json&rows=0"
                 f"&facet=true&facet.field=journalTitle_s&facet.limit={self.max_plotted_entities}&facet.mincount=1&"
                 "stats=true&stats.field={!count=true+cardinality=true}journalTitle_s"
             )
@@ -1963,7 +1892,7 @@ class OpenAccessWorks(Biso):
 
     def __init__(
             self,
-            lab: str,
+            entity_id: str,
             year: int | None = None,
             year_range: tuple[int, int] | int | None = None,
             colors: Any = None,
@@ -1972,8 +1901,8 @@ class OpenAccessWorks(Biso):
         """
         Initialize the OpenAccessWorks class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year. Ignored if `year_range` is
             provided. If `year_range` is not provided, `year_range` will be set to
             `[year - self.default_year_range_difference, year]`
@@ -1991,7 +1920,7 @@ class OpenAccessWorks(Biso):
             warnings.warn(
                 f"You provided year and year_range, so year will be ignored. The plot will use year_range={year_range}."
             )
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
         if colors is None:
             self.colors = self.default_oa_colors
         else:
@@ -2020,7 +1949,7 @@ class OpenAccessWorks(Biso):
                 index=range(self.year_range[0], self.year_range[1] + 1)
             )
             facet_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND submitType_s:(file OR annex) AND docType_s:(ART OR COMM)&wt=json&"
                 f"rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
@@ -2033,7 +1962,7 @@ class OpenAccessWorks(Biso):
                     pass
 
             oa_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND openAccess_bool:true AND submitType_s:notice AND docType_s:(ART OR COMM)&"
                 f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
@@ -2046,7 +1975,7 @@ class OpenAccessWorks(Biso):
                     pass
 
             non_oa_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:[{self.year_range[0]} TO "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:[{self.year_range[0]} TO "
                 f"{self.year_range[1]}] AND openAccess_bool:false AND submitType_s:notice  AND docType_s:(ART OR COMM)&"
                 f"wt=json&rows=0&facet=true&facet.field=publicationDateY_i&facet.limit={self.max_plotted_entities}"
             )
@@ -2181,18 +2110,18 @@ class PrivateSectorCollaborations(Biso):
 
     orientation = 'h'
 
-    def __init__(self, lab: str, year: int | None = None, **kwargs):
+    def __init__(self, entity_id: str, year: int | None = None, **kwargs):
         """
         Initialize the PrivateSectorCollaborations class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -2283,7 +2212,7 @@ class WorksBibtex(Biso):
             return re.sub(r'[\u0400-\u04FF]', '?', text)
 
         try:
-            url = (f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&"
+            url = (f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year}&"
                    f"wt=json&rows=0")
             self.n_entities_found = requests.get(url).json()["response"]["numFound"]
             if self.max_plotted_entities > 1000:
@@ -2294,7 +2223,7 @@ class WorksBibtex(Biso):
                 )
                 self.max_plotted_entities = 1000
             url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year}&wt=json&"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year}&wt=json&"
                 f"rows={self.max_plotted_entities}&fl=title_s,authFullName_s,uri_s,journalTitle_s,journalPublisher_s,"
                 f"volume_s,page_s,publicationDateY_i,doiId_s,halId_s,label_bibtex"
             )
@@ -2367,18 +2296,18 @@ class WorksType(Biso):
     A class to fetch and plot data about work types.
     """
 
-    def __init__(self, lab, year: int | None = None, **kwargs):
+    def __init__(self, entity_id, year: int | None = None, **kwargs):
         """
         Initialize the WorksType class.
 
-        :param lab: The HAL collection identifier. This usually refers to the lab acronym.
-        :type lab: str
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param args: Additional positional arguments.
         :param kwargs: Additional keyword arguments.
         """
-        super().__init__(lab, year, **kwargs)
+        super().__init__(entity_id, year, **kwargs)
 
 
     def fetch_data(self) -> dict[str, Any]:
@@ -2394,14 +2323,14 @@ class WorksType(Biso):
         """
         try:
             stats_url = (
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} AND "
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} AND "
                 "docType_s:(COMM)&wt=json&rows=0&stats=true&stats.field={!count=true+cardinality=true}docType_s"
             )
             res = requests.get(stats_url).json()
             self.n_entities_found = (res.get('stats', {}).get('stats_fields', {}).get('docType_s', {}).
                                      get('cardinality', 0))
             facet_url=(
-                f"https://api.archives-ouvertes.fr/search/{self.lab}/?q=publicationDateY_i:{self.year} &"
+                f"https://api.archives-ouvertes.fr/search/{self.entity_id}/?q=publicationDateY_i:{self.year} &"
                 f"wt=json&rows=0&facet=true&facet.pivot=docType_s&facet.limit={self.max_plotted_entities}"
                 "&facet.mincount=1"
             )
