@@ -1,0 +1,188 @@
+from typing import Any
+import math
+import logging
+import warnings
+from collections import defaultdict
+import traceback
+import re
+
+from pyalex import Institutions, Works
+
+
+from dibisoplot.dibisoplot import DataStatus, Dibisoplot
+
+# bug fix: https://github.com/plotly/plotly.py/issues/3469
+import plotly.io as pio
+pio.kaleido.scope.mathjax = None
+
+# catch useless warning logs, e.g.:
+# WARNING:pylatexenc.latexencode._unicode_to_latex_encoder:No known latex representation for character
+logging.getLogger('pylatexenc').setLevel(logging.ERROR)
+
+
+class PubPart(Dibisoplot):
+    """
+    Base class for generating plots and tables from data fetched from OpenAlex for the PubPart report (Publications and
+    Partnerships report).
+    The fetch methods are located in each child class.
+    This class is not designed to be called directly but rather to provide general methods to the different plot types.
+    """
+
+    def __init__(
+            self,
+            entity_id,
+            year: int | None = None,
+            barcornerradius: int = 10,
+            dynamic_height: bool = True,
+            dynamic_min_height: int | float = 150,
+            dynamic_height_per_bar: int | float = 25,
+            height: int = 600,
+            language: str = "fr",
+            legend_pos: dict = None,
+            main_color: str = "blue",
+            margin: dict = None,
+            max_entities: int | None = 1000,
+            max_plotted_entities: int = 25,
+            template: str = "simple_white",
+            text_position: str = "outside",
+            title: str | None = None,
+            width: int = 800,
+    ):
+        """
+        Initialize the Biso class with the given parameters.
+
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param barcornerradius: Corner radius for bars in plots.
+        :type barcornerradius: int, optional
+        :param dynamic_height: Whether to use dynamic height for the plot. Only implemented for horizontal bar plots.
+        :type dynamic_height: bool, optional
+        :param dynamic_min_height: Minimum height for the plot when the height is set dynamically.
+        :type dynamic_min_height: int | float, optional
+        :param dynamic_height_per_bar: Height per bar for plots when the height is set dynamically.
+        :type dynamic_height_per_bar: int | float, optional
+        :param height: Height of the plot.
+        :type height: int, optional
+        :param language: Language for the plot. Default to 'fr'.
+        :type language: str, optional
+        :param legend_pos: Position of the legend.
+        :type legend_pos: dict, optional
+        :param main_color: Main color for the plot.
+        :type main_color: str, optional
+        :param margin: Margins for the plot.
+        :type margin: dict, optional
+        :param max_entities: Default maximum number of entities used to create the plot. Default 1000.
+            Set to None to disable the limit. This value limits the number of queried entities when doing analysis.
+            For example, when creating the collaboration map, it limits the number of works to query from HAL to extract
+            the collaborating institutions from.
+        :type max_entities: int | None, optional
+        :param max_plotted_entities: Maximum number of bars in the plot or rows in the table. Default to 25.
+        :type max_plotted_entities: int, optional
+        :param template: Template for the plot.
+        :type template: str, optional
+        :param text_position: Position of the text on bars.
+        :type text_position: str, optional
+        :param title: Title of the plot.
+        :type title: str | None, optional
+        :param width: Width of the plot.
+        :type width: int, optional
+        """
+        super().__init__(
+            entity_id = entity_id,
+            year = year,
+            barcornerradius = barcornerradius,
+            dynamic_height = dynamic_height,
+            dynamic_min_height = dynamic_min_height,
+            dynamic_height_per_bar = dynamic_height_per_bar,
+            height = height,
+            language = language,
+            legend_pos = legend_pos,
+            main_color = main_color,
+            margin = margin,
+            max_entities = max_entities,
+            max_plotted_entities = max_plotted_entities,
+            template = template,
+            text_position = text_position,
+            title = title,
+            width = width
+        )
+
+
+class Collaborations(PubPart):
+    """
+    A class to fetch and plot data about collaborations.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(
+            self,
+            entity_id: str,
+            year: int | None = None,
+            collaboration_type: str = "academic",
+            institutions_to_ignore: list[str] = None,
+            **kwargs
+    ):
+        """
+        Initialize the Collaborations class.
+
+        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param collaboration_type: Type of collaborations
+        :type collaboration_type: str
+        :param institutions_to_ignore: List of institutions to not plot.
+        :type institutions_to_ignore: list[str]
+        :param args: Additional positional arguments.
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(entity_id, year, **kwargs)
+        self.collaboration_type = collaboration_type
+        if institutions_to_ignore is None:
+            self.institutions_to_ignore = []
+        else:
+            self.institutions_to_ignore = [
+                i.upper() if i.startswith("https://openalex.org/") else "https://openalex.org/" + i.upper()
+                for i in institutions_to_ignore
+            ]
+
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about collaborations from OpenAlex
+        TODO: implement pagination for API requests
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        # try:
+        entity_openalex_id_list = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
+        entity_openalex_id_list.append("https://openalex.org/" + self.entity_id.upper())
+        entity_openalex_id_list.extend(self.institutions_to_ignore)
+        self.data = Works() \
+            .filter(institutions={"id": self.entity_id}) \
+            .group_by("institutions.id").get()
+        # remove institutions affiliated to entity_id
+        self.data = [collab for collab in self.data if collab["key"] not in entity_openalex_id_list]
+        self.data = {collab["key_display_name"]:collab["count"] for collab in self.data}
+        # sort values
+        self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+        if not self.data:
+            self.data_status = DataStatus.NO_DATA
+        else:
+            self.data_status = DataStatus.OK
+        self.generate_plot_info()
+        return {"info": self.info}
+#         except Exception as e:
+#             print(f"Error fetching or formatting data: {e}")
+#             traceback.print_exc()
+#             self.data = None
+#             self.data_status = DataStatus.ERROR
+#             return {"info": self._("Error")}
+
+
