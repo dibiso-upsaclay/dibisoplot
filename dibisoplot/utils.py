@@ -3,6 +3,7 @@ import pkgutil
 import tomllib
 import warnings
 
+import flag
 import plotly.graph_objects as go
 
 hal_doc_types_names_mapping = tomllib.load(BytesIO(pkgutil.get_data(__name__, "HAL_doc_types_names.toml")))
@@ -65,3 +66,27 @@ def get_bar_width(n_bars: int) -> int | float:
     if n_bars >= n_bars_max_width:
         return max_width
     return a * n_bars + b
+
+
+def format_structure_name(struct_name: str, country_code: str) -> str:
+            """
+            Format the structure name by cropping if too long and adding a country flag.
+
+            :param struct_name: The structure name.
+            :type struct_name: str
+            :param country_code: The country code.
+            :type country_code: str
+            :return: The formatted structure name with country flag.
+            :rtype: str
+            """
+            # crop name if too long
+            if len(struct_name) > 75:
+                struct_name = struct_name[:75]+"... "
+            # add country flag
+            if country_code is not None:
+                try:
+                    struct_name += " " + flag.flag(country_code)
+                except flag.UnknownCountryCode:
+                    struct_name += f" ({country_code})"
+
+            return struct_name

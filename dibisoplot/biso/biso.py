@@ -18,7 +18,7 @@ import requests
 from elasticsearch import Elasticsearch
 from pylatexenc.latexencode import unicode_to_latex
 
-from dibisoplot.utils import get_hal_doc_type_name
+from dibisoplot.utils import get_hal_doc_type_name, format_structure_name
 from dibisoplot.dibisoplot import DataStatus, Dibisoplot
 
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
@@ -921,28 +921,6 @@ class CollaborationNames(Biso):
         :return: The info about the fetched data.
         :rtype: dict[str, Any]
         """
-        def format_structure_name(struct_name: str, country_code: str) -> str:
-            """
-            Format the structure name by cropping if too long and adding a country flag.
-
-            :param struct_name: The structure name.
-            :type struct_name: str
-            :param country_code: The country code.
-            :type country_code: str
-            :return: The formatted structure name with country flag.
-            :rtype: str
-            """
-            # crop name if too long
-            if len(struct_name) > 75:
-                struct_name = struct_name[:75]+"... "
-            # add country flag
-            if country_code is not None:
-                try:
-                    struct_name += " " + flag.flag(country_code)
-                except flag.UnknownCountryCode:
-                    struct_name += f" ({country_code})"
-
-            return struct_name
 
         try:
             # Get count of each structure id in publications

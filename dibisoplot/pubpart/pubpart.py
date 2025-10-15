@@ -6,14 +6,20 @@ from collections import defaultdict
 import traceback
 import re
 
+from openalex_analysis.data import InstitutionsData
+from openalex_analysis.data import config as openalex_analysis_config
+import pandas as pd
 from pyalex import Institutions, Works
+# from openalex_analysis.data import WorksData
 
-
+from dibisoplot.utils import format_structure_name
 from dibisoplot.dibisoplot import DataStatus, Dibisoplot
 
 # bug fix: https://github.com/plotly/plotly.py/issues/3469
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
+
+openalex_analysis_config.disable_tqdm_loading_bar = True
 
 # catch useless warning logs, e.g.:
 # WARNING:pylatexenc.latexencode._unicode_to_latex_encoder:No known latex representation for character
@@ -26,7 +32,11 @@ class PubPart(Dibisoplot):
     Partnerships report).
     The fetch methods are located in each child class.
     This class is not designed to be called directly but rather to provide general methods to the different plot types.
+
+    :cvar default_margin: Default margins for plots.
     """
+
+    default_margin = dict(l=30, r=30, b=30, t=30, pad=4)
 
     def __init__(
             self,
@@ -123,7 +133,7 @@ class Collaborations(PubPart):
             self,
             entity_id: str,
             year: int | None = None,
-            collaboration_type: str = "academic",
+            collaboration_type: list[str] = None,
             institutions_to_ignore: list[str] = None,
             **kwargs
     ):
@@ -134,8 +144,9 @@ class Collaborations(PubPart):
         :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
-        :param collaboration_type: Type of collaborations
-        :type collaboration_type: str
+        :param collaboration_type: Type of collaborations (from the ROR type controlled vocabulary). Default to None.
+            If None, use all types of institutions.
+        :type collaboration_type: list[str]
         :param institutions_to_ignore: List of institutions to not plot.
         :type institutions_to_ignore: list[str]
         :param args: Additional positional arguments.
@@ -160,29 +171,52 @@ class Collaborations(PubPart):
         :return: The info about the fetched data.
         :rtype: dict[str, Any]
         """
-        # try:
-        entity_openalex_id_list = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
-        entity_openalex_id_list.append("https://openalex.org/" + self.entity_id.upper())
-        entity_openalex_id_list.extend(self.institutions_to_ignore)
-        self.data = Works() \
-            .filter(institutions={"id": self.entity_id}) \
-            .group_by("institutions.id").get()
-        # remove institutions affiliated to entity_id
-        self.data = [collab for collab in self.data if collab["key"] not in entity_openalex_id_list]
-        self.data = {collab["key_display_name"]:collab["count"] for collab in self.data}
-        # sort values
-        self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
-        if not self.data:
-            self.data_status = DataStatus.NO_DATA
-        else:
-            self.data_status = DataStatus.OK
-        self.generate_plot_info()
-        return {"info": self.info}
-#         except Exception as e:
-#             print(f"Error fetching or formatting data: {e}")
-#             traceback.print_exc()
-#             self.data = None
-#             self.data_status = DataStatus.ERROR
-#             return {"info": self._("Error")}
+        try:
+            self.data = {}
+            # entities to exclude
+            entities_to_exclude = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
+            entities_to_exclude.append("https://openalex.org/" + self.entity_id.upper())
+            entities_to_exclude.extend(self.institutions_to_ignore)
+            query_filter = {"institutions": {"id": self.entity_id}}
+            # create the pager for finding work with collaborating institutions with potential researched type and count
+            if self.collaboration_type is not None:
+                query_filter["institutions"]["type"] = "|".join(self.collaboration_type)
+            pager = Works().filter(**query_filter).group_by("institutions.id").paginate(per_page=200, n_max=None)
+            for page in pager:
+                institutions_count = page
+                institutions_count = pd.DataFrame().from_dict(institutions_count).set_index("key")
+                # now search institutions to check that they are of the correct type
+                institutions_list = InstitutionsData(
+                    entities_from_id_list = [
+                        inst.replace("https://openalex.org/", "") for inst in institutions_count.index
+                    ]
+                )
+                institutions_list = institutions_list.entities_df.set_index("id")
+                # merge list and count
+                institutions = institutions_count.join(institutions_list, how="inner")
+                # keep only institutions of the correct type
+                institutions = institutions[institutions["type"].isin(self.collaboration_type)]
+                for index, row in institutions.iterrows():
+                    name = format_structure_name(str(row["display_name"]), str(row["country_code"]))
+                    self.data[name] = row["count"]
+                if len(self.data) >= self.max_plotted_entities:
+                    break
+                print(len(self.data))
+                print(self.data)
+
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
 
 
