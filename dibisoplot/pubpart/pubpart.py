@@ -6,7 +6,7 @@ from collections import defaultdict
 import traceback
 import re
 
-from openalex_analysis.data import InstitutionsData
+from openalex_analysis.data import InstitutionsData, WorksData
 from openalex_analysis.data import config as openalex_analysis_config
 import pandas as pd
 from pyalex import Institutions, Works
@@ -19,7 +19,8 @@ from dibisoplot.dibisoplot import DataStatus, Dibisoplot
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
-openalex_analysis_config.disable_tqdm_loading_bar = True
+# openalex_analysis_config.disable_tqdm_loading_bar = True
+openalex_analysis_config.n_max_entities = 1e6
 
 # catch useless warning logs, e.g.:
 # WARNING:pylatexenc.latexencode._unicode_to_latex_encoder:No known latex representation for character
@@ -46,6 +47,7 @@ class PubPart(Dibisoplot):
             dynamic_height: bool = True,
             dynamic_min_height: int | float = 150,
             dynamic_height_per_bar: int | float = 25,
+            entity_openalex_filter_field: str = "authorships.institutions.id",
             height: int = 600,
             language: str = "fr",
             legend_pos: dict = None,
@@ -73,6 +75,10 @@ class PubPart(Dibisoplot):
         :type dynamic_min_height: int | float, optional
         :param dynamic_height_per_bar: Height per bar for plots when the height is set dynamically.
         :type dynamic_height_per_bar: int | float, optional
+        :param entity_openalex_filter_field: Field to filter on in the OpenAlex API. Default to 'institutions.id'.
+            The list of possible values can be found in the OpenAlex documentation:
+            https://docs.openalex.org/api-entities/works/filter-works
+        :type entity_openalex_filter_field: str, optional
         :param height: Height of the plot.
         :type height: int, optional
         :param language: Language for the plot. Default to 'fr'.
@@ -118,6 +124,7 @@ class PubPart(Dibisoplot):
             title = title,
             width = width
         )
+        self.entity_openalex_filter_field = entity_openalex_filter_field
 
 
 class Collaborations(PubPart):
@@ -177,33 +184,19 @@ class Collaborations(PubPart):
             entities_to_exclude = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
             entities_to_exclude.append("https://openalex.org/" + self.entity_id.upper())
             entities_to_exclude.extend(self.institutions_to_ignore)
-            query_filter = {"institutions": {"id": self.entity_id}}
-            # create the pager for finding work with collaborating institutions with potential researched type and count
-            if self.collaboration_type is not None:
-                query_filter["institutions"]["type"] = "|".join(self.collaboration_type)
-            pager = Works().filter(**query_filter).group_by("institutions.id").paginate(per_page=200, n_max=None)
-            for page in pager:
-                institutions_count = page
-                institutions_count = pd.DataFrame().from_dict(institutions_count).set_index("key")
-                # now search institutions to check that they are of the correct type
-                institutions_list = InstitutionsData(
-                    entities_from_id_list = [
-                        inst.replace("https://openalex.org/", "") for inst in institutions_count.index
-                    ]
-                )
-                institutions_list = institutions_list.entities_df.set_index("id")
-                # merge list and count
-                institutions = institutions_count.join(institutions_list, how="inner")
-                # keep only institutions of the correct type
-                institutions = institutions[institutions["type"].isin(self.collaboration_type)]
-                for index, row in institutions.iterrows():
-                    name = format_structure_name(str(row["display_name"]), str(row["country_code"]))
-                    self.data[name] = row["count"]
-                if len(self.data) >= self.max_plotted_entities:
-                    break
-                print(len(self.data))
-                print(self.data)
-
+            w = WorksData(
+                extra_filters = {
+                    self.entity_openalex_filter_field: self.entity_id,
+                    "publication_year": self.year
+                }
+            )
+            for index, row in w.entities_df.iterrows():
+                for authorship in row["authorships"]:
+                    for institution in authorship["institutions"]:
+                        if institution["id"] not in entities_to_exclude and institution["type"] in self.collaboration_type:
+                            name = format_structure_name(str(institution["display_name"]), str(institution["country_code"]))
+                            self.data[name] = self.data.get(name, 0) + 1
+            self.n_entities_found = len(self.data)
             # sort values
             self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
             if not self.data:
