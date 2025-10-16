@@ -141,6 +141,9 @@ class Collaborations(PubPart):
             entity_id: str,
             year: int | None = None,
             collaboration_type: list[str] = None,
+            countries_to_include: list[str] = None,
+            countries_to_exclude: list[str] = None,
+            ignore_institutions_from_lineage: bool = True,
             institutions_to_ignore: list[str] = None,
             **kwargs
     ):
@@ -154,6 +157,14 @@ class Collaborations(PubPart):
         :param collaboration_type: Type of collaborations (from the ROR type controlled vocabulary). Default to None.
             If None, use all types of institutions.
         :type collaboration_type: list[str]
+        :param countries_to_include: List of country codes to include in the plot. Default to None. If not None, only
+            collaborations from countries in this list will be included in the plot.
+        :type countries_to_include: list[str] | None, optional
+        :param countries_to_exclude: List of country codes to exclude from the plot. Default to None. If not None,
+            countries from the list will be excluded from the plot.
+        :type countries_to_exclude: list[str] | None, optional
+        :param ignore_institutions_from_lineage: Whether to ignore institutions from the lineage. Default to True.
+        :type ignore_institutions_from_lineage: bool
         :param institutions_to_ignore: List of institutions to not plot.
         :type institutions_to_ignore: list[str]
         :param args: Additional positional arguments.
@@ -161,6 +172,13 @@ class Collaborations(PubPart):
         """
         super().__init__(entity_id, year, **kwargs)
         self.collaboration_type = collaboration_type
+        if countries_to_include is not None:
+            countries_to_include = [c.upper() for c in countries_to_include]
+        self.countries_to_include = countries_to_include
+        if countries_to_exclude is not None:
+            countries_to_exclude = [c.upper() for c in countries_to_exclude]
+        self.countries_to_exclude = countries_to_exclude
+        self.ignore_institutions_from_lineage = ignore_institutions_from_lineage
         if institutions_to_ignore is None:
             self.institutions_to_ignore = []
         else:
@@ -181,7 +199,10 @@ class Collaborations(PubPart):
         try:
             self.data = {}
             # entities to exclude
-            entities_to_exclude = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
+            if self.ignore_institutions_from_lineage:
+                entities_to_exclude = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
+            else:
+                entities_to_exclude = []
             entities_to_exclude.append("https://openalex.org/" + self.entity_id.upper())
             entities_to_exclude.extend(self.institutions_to_ignore)
             w = WorksData(
@@ -193,9 +214,23 @@ class Collaborations(PubPart):
             for index, row in w.entities_df.iterrows():
                 for authorship in row["authorships"]:
                     for institution in authorship["institutions"]:
-                        if institution["id"] not in entities_to_exclude and institution["type"] in self.collaboration_type:
-                            name = format_structure_name(str(institution["display_name"]), str(institution["country_code"]))
-                            self.data[name] = self.data.get(name, 0) + 1
+                        if (
+                            institution["id"] not in entities_to_exclude and
+                            ((self.collaboration_type is not None and institution["type"] in self.collaboration_type)
+                                or self.collaboration_type is None)
+                        ):
+                            if (
+                                (self.countries_to_include is not None
+                                 and institution["country_code"] in self.countries_to_include)
+                                or (self.countries_to_exclude is not None
+                                    and institution["country_code"] not in self.countries_to_exclude)
+                                or (self.countries_to_include is None and self.countries_to_exclude is None)
+                            ):
+                                name = format_structure_name(
+                                    str(institution["display_name"]),
+                                    str(institution["country_code"])
+                                )
+                                self.data[name] = self.data.get(name, 0) + 1
             self.n_entities_found = len(self.data)
             # sort values
             self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
