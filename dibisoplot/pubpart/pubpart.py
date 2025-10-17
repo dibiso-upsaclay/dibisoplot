@@ -324,7 +324,7 @@ class TopicsCollaborations(PubPart):
             self,
             entity_id: str,
             year: int | None = None,
-            secondary_entity_id: str | None = None,
+            secondary_entity_id: str | list[str] | None = None,
             **kwargs
     ):
         """
@@ -334,15 +334,18 @@ class TopicsCollaborations(PubPart):
         :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
-        :param secondary_entity_id: The OpenAlex ID for the secondary entity to analyze the topics of collaborations.
-        :type secondary_entity_id: str | None
+        :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
+            collaborations.
+        :type secondary_entity_id: str | list[str] | None
         :param kwargs: Additional keyword arguments.
         """
         super().__init__(entity_id, year, **kwargs)
         if secondary_entity_id is None:
             raise ValueError("secondary_entity_id must be provided")
-        self.secondary_entity_id = secondary_entity_id
-
+        if isinstance(secondary_entity_id, str):
+            self.secondary_entity_id = [secondary_entity_id]
+        else:
+            self.secondary_entity_id = secondary_entity_id
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -359,16 +362,20 @@ class TopicsCollaborations(PubPart):
                     self.entity_openalex_filter_field: self.entity_id,
                     "publication_year": self.year
                 }
-            )
-            w2 = WorksData(
-                extra_filters={
-                    self.entity_openalex_filter_field: self.secondary_entity_id,
-                    "publication_year": self.year
-                }
-            )
-            w1.entities_df.set_index("id", inplace=True)
-            w2.entities_df.set_index("id", inplace=True)
-            wc = w1.entities_df.loc[w1.entities_df.index.isin(w2.entities_df.index)]
+            ).entities_df
+            w2 = pd.DataFrame()
+            for entity in self.secondary_entity_id:
+                w = WorksData(
+                    extra_filters={
+                        self.entity_openalex_filter_field: entity,
+                        "publication_year": self.year
+                    }
+                ).entities_df
+                w2 = pd.concat([w2, w], ignore_index=True)
+
+            w1.set_index("id", inplace=True)
+            w2.set_index("id", inplace=True)
+            wc = w1.loc[w1.index.isin(w2.index)]
             for index, row in wc.iterrows():
                 for topic in row["topics"]:
                     name = topic["display_name"]
