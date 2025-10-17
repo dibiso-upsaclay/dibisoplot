@@ -3,6 +3,7 @@ from enum import Enum
 import pandas as pd
 from datetime import datetime
 import plotly.graph_objects as go
+import plotly.express as px
 
 from dibisoplot.translation import get_translator
 from dibisoplot.utils import get_empty_plot_with_message, get_empty_latex_with_message, get_bar_width
@@ -30,12 +31,13 @@ class Dibisoplot:
     :cvar default_margin: Default margins for plots.
     """
 
+    # TODO: change default orientation value to 'h'
     orientation = 'v'
     figure_file_extension = "pdf"
 
     default_dynamic_bar_width = 0.7
     default_height = 600
-    default_legend_pos = dict(x=1, y=1, xanchor='right', yanchor='top')
+    default_legend_pos = dict(x=1, y=0, xanchor='right', yanchor='bottom')
     default_margin = dict(l=15, r=15, b=15, t=15, pad=4)
 
     def __init__(
@@ -128,6 +130,7 @@ class Dibisoplot:
         self.width = width
 
         self.data = None
+        self.data_categories = None
         self.data_status = DataStatus.NOT_FETCHED
         self.n_entities_found = None
         # self.max_entities_reached is set to True if the number of processed entities was limited by max_entities
@@ -386,17 +389,9 @@ class Dibisoplot:
         if self.data_status == DataStatus.ERROR:
             return self.get_error_plot()
 
+        # TODO: move sorting from fetch_data to here
         # keep only the first max_plotted_entities items in the dictionary
-        self.data =  dict(list(self.data.items())[-self.max_plotted_entities:])
-
-        fig = go.Figure()
-
-        if self.orientation == 'v':
-            x_values = list(self.data.keys())
-            y_values = list(self.data.values())
-        else:
-            x_values = list(self.data.values())
-            y_values = list(self.data.keys())
+        self.data = dict(list(self.data.items())[-self.max_plotted_entities:])
 
         if self.dynamic_height and self.orientation == 'h':
             height = self.dynamic_height_per_bar*len(self.data.keys())
@@ -407,20 +402,56 @@ class Dibisoplot:
             height = self.height
             bar_width = get_bar_width(len(self.data.keys()))
 
-        # Add a bar for each type
-        fig.add_trace(go.Bar(
-            x=x_values,
-            y=y_values,
-            marker_color=self.main_color,
-            orientation=self.orientation,
-            text=list(self.data.values()),
-            textposition=self.text_position,
-            textangle=0,
-            cliponaxis=False,
-            width=bar_width,
-        ))
+        fig = go.Figure()
 
-        # Update layout for better visualization
+        if self.data_categories is not None:
+            # Get all unique categories, sort to keep order consistent across re-runs for colors
+            unique_categories = sorted(set(self.data_categories.values()))
+            print(unique_categories)
+            # Assign a color to each unique category
+            colors = px.colors.qualitative.Bold[:len(unique_categories)]
+            for category, color in zip(unique_categories, colors):
+                values = [self.data[key] if self.data_categories[key] == category else 0 for key in self.data.keys()]
+                if self.orientation == 'v':
+                    x_values = list(self.data.keys())
+                    y_values = values
+                else:
+                    x_values = values
+                    y_values = list(self.data.keys())
+
+                fig.add_trace(go.Bar(
+                    x=x_values,
+                    y=y_values,
+                    name=category,
+                    showlegend=True,
+                    marker_color=color,
+                    orientation=self.orientation,
+                    text=list(self.data.values()),
+                    textposition=self.text_position,
+                    textangle=0,
+                    cliponaxis=False,
+                    width=bar_width,
+                ))
+        else:
+            if self.orientation == 'v':
+                x_values = list(self.data.keys())
+                y_values = list(self.data.values())
+            else:
+                x_values = list(self.data.values())
+                y_values = list(self.data.keys())
+            fig.add_trace(go.Bar(
+                x=x_values,
+                y=y_values,
+                showlegend=False,
+                marker_color=self.main_color,
+                orientation=self.orientation,
+                text=list(self.data.values()),
+                textposition=self.text_position,
+                textangle=0,
+                cliponaxis=False,
+                width=bar_width,
+            ))
+
         fig.update_layout(
             barmode='stack',
             barcornerradius=self.barcornerradius,

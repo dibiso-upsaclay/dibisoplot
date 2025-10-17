@@ -63,7 +63,7 @@ class PubPart(Dibisoplot):
         """
         Initialize the Biso class with the given parameters.
 
-        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :param entity_id: The OpenAlex ID for the secondary entity.
         :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
@@ -150,7 +150,7 @@ class Collaborations(PubPart):
         """
         Initialize the Collaborations class.
 
-        :param entity_id: The HAL collection identifier. This usually refers to the entity id acronym.
+        :param entity_id: The OpenAlex ID for the secondary entity.
         :type entity_id: str
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
@@ -191,7 +191,6 @@ class Collaborations(PubPart):
     def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about collaborations from OpenAlex
-        TODO: implement pagination for API requests
 
         :return: The info about the fetched data.
         :rtype: dict[str, Any]
@@ -248,3 +247,145 @@ class Collaborations(PubPart):
             return {"info": self._("Error")}
 
 
+class Topics(PubPart):
+    """
+    A class to fetch and plot data about openalex topics.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(
+            self,
+            entity_id: str,
+            year: int | None = None,
+            **kwargs
+    ):
+        """
+        Initialize the Topics class.
+
+        :param entity_id: The OpenAlex ID for the secondary entity.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(entity_id, year, **kwargs)
+
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about topics from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            self.data = {}
+            # entities to exclude
+            w = WorksData(
+                extra_filters = {
+                    self.entity_openalex_filter_field: self.entity_id,
+                    "publication_year": self.year
+                }
+            )
+            for index, row in w.entities_df.iterrows():
+                for topic in row["topics"]:
+                    name = topic["display_name"]
+                    self.data[name] = self.data.get(name, 0) + 1
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
+
+
+class TopicsCollaborations(PubPart):
+    """
+    A class to fetch and plot data about openalex topics of collaborations.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(
+            self,
+            entity_id: str,
+            year: int | None = None,
+            secondary_entity_id: str | None = None,
+            **kwargs
+    ):
+        """
+        Initialize the TopicsCollaborations class.
+
+        :param entity_id: The OpenAlex ID for the secondary entity.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param secondary_entity_id: The OpenAlex ID for the secondary entity to analyze the topics of collaborations.
+        :type secondary_entity_id: str | None
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(entity_id, year, **kwargs)
+        if secondary_entity_id is None:
+            raise ValueError("secondary_entity_id must be provided")
+        self.secondary_entity_id = secondary_entity_id
+
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about topics of collaborations from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            self.data = {}
+            self.data_categories = {}
+            w1 = WorksData(
+                extra_filters = {
+                    self.entity_openalex_filter_field: self.entity_id,
+                    "publication_year": self.year
+                }
+            )
+            w2 = WorksData(
+                extra_filters={
+                    self.entity_openalex_filter_field: self.secondary_entity_id,
+                    "publication_year": self.year
+                }
+            )
+            w1.entities_df.set_index("id", inplace=True)
+            w2.entities_df.set_index("id", inplace=True)
+            wc = w1.entities_df.loc[w1.entities_df.index.isin(w2.entities_df.index)]
+            for index, row in wc.iterrows():
+                for topic in row["topics"]:
+                    name = topic["display_name"]
+                    self.data[name] = self.data.get(name, 0) + 1
+                    self.data_categories[name] = topic["domain"]["display_name"]
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
