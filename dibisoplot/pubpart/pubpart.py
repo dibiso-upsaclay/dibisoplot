@@ -325,6 +325,7 @@ class TopicsCollaborations(PubPart):
             entity_id: str,
             year: int | None = None,
             secondary_entity_id: str | list[str] | None = None,
+            secondary_entity_filter_field: str | list[str] | None = None,
             **kwargs
     ):
         """
@@ -337,6 +338,9 @@ class TopicsCollaborations(PubPart):
         :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
             collaborations. If a work is present in several entities, it is counted only once.
         :type secondary_entity_id: str | list[str] | None
+        :param secondary_entity_filter_field: The OpenAlex filter field for the secondary entity or entities. If None,
+            use the same as for the main entity. If a single string is provided, it is used for all secondary entities.
+        :type secondary_entity_filter_field: str | list[str] | None, optional
         :param kwargs: Additional keyword arguments.
         """
         super().__init__(entity_id, year, **kwargs)
@@ -346,6 +350,12 @@ class TopicsCollaborations(PubPart):
             self.secondary_entity_id = [secondary_entity_id]
         else:
             self.secondary_entity_id = secondary_entity_id
+        if secondary_entity_filter_field is None:
+            self.secondary_entity_filter_field = [self.entity_openalex_filter_field] * len(self.secondary_entity_id)
+        elif isinstance(secondary_entity_filter_field, str):
+            self.secondary_entity_filter_field = [secondary_entity_filter_field] * len(self.secondary_entity_id)
+        else:
+            self.secondary_entity_filter_field = secondary_entity_filter_field
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -364,10 +374,10 @@ class TopicsCollaborations(PubPart):
                 }
             ).entities_df
             w2 = pd.DataFrame()
-            for entity in self.secondary_entity_id:
+            for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
                 w = WorksData(
                     extra_filters={
-                        self.entity_openalex_filter_field: entity,
+                        entity_filter: entity,
                         "publication_year": self.year
                     }
                 ).entities_df
@@ -412,6 +422,7 @@ class TopicsPotentialCollaborations(PubPart):
             entity_id: str,
             year: int | None = None,
             secondary_entity_id: str | list[str] | None = None,
+            secondary_entity_filter_field: str | list[str] | None = None,
             **kwargs
     ):
         """
@@ -424,6 +435,9 @@ class TopicsPotentialCollaborations(PubPart):
         :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
             collaborations. If a work is present in several entities, it is counted only once.
         :type secondary_entity_id: str | list[str] | None
+        :param secondary_entity_filter_field: The OpenAlex filter field for the secondary entity or entities. If None,
+            use the same as for the main entity. If a single string is provided, it is used for all secondary entities.
+        :type secondary_entity_filter_field: str | list[str] | None, optional
         :param kwargs: Additional keyword arguments.
         """
         super().__init__(entity_id, year, **kwargs)
@@ -433,6 +447,12 @@ class TopicsPotentialCollaborations(PubPart):
             self.secondary_entity_id = [secondary_entity_id]
         else:
             self.secondary_entity_id = secondary_entity_id
+        if secondary_entity_filter_field is None:
+            self.secondary_entity_filter_field = [self.entity_openalex_filter_field] * len(self.secondary_entity_id)
+        elif isinstance(secondary_entity_filter_field, str):
+            self.secondary_entity_filter_field = [secondary_entity_filter_field] * len(self.secondary_entity_id)
+        else:
+            self.secondary_entity_filter_field = secondary_entity_filter_field
 
     def fetch_data(self) -> dict[str, Any]:
         """
@@ -451,10 +471,10 @@ class TopicsPotentialCollaborations(PubPart):
                 }
             ).entities_df
             w2 = pd.DataFrame()
-            for entity in self.secondary_entity_id:
+            for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
                 w = WorksData(
                     extra_filters={
-                        self.entity_openalex_filter_field: entity,
+                        entity_filter: entity,
                         "publication_year": self.year
                     }
                 ).entities_df

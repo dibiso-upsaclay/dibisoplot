@@ -407,7 +407,6 @@ class Dibisoplot:
         if self.data_categories is not None:
             # Get all unique categories, sort to keep order consistent across re-runs for colors
             unique_categories = sorted(set(self.data_categories.values()))
-            print(unique_categories)
             # Assign a color to each unique category
             colors = px.colors.qualitative.Bold[:len(unique_categories)]
             for category, color in zip(unique_categories, colors):
