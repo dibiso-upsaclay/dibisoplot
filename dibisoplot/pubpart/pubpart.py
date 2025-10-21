@@ -335,7 +335,7 @@ class TopicsCollaborations(PubPart):
         :param year: The year for which to fetch data. If None, uses the current year.
         :type year: int | none, optional
         :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
-            collaborations.
+            collaborations. If a work is present in several entities, it is counted only once.
         :type secondary_entity_id: str | list[str] | None
         :param kwargs: Additional keyword arguments.
         """
@@ -381,6 +381,120 @@ class TopicsCollaborations(PubPart):
                     name = topic["display_name"]
                     self.data[name] = self.data.get(name, 0) + 1
                     self.data_categories[name] = topic["domain"]["display_name"]
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
+
+
+class TopicsPotentialCollaborations(PubPart):
+    """
+    A class to fetch and plot data about openalex topics of potential collaborations.
+
+    :cvar orientation: Orientation for plots ('h' for horizontal).
+    """
+
+    orientation = 'h'
+
+    def __init__(
+            self,
+            entity_id: str,
+            year: int | None = None,
+            secondary_entity_id: str | list[str] | None = None,
+            **kwargs
+    ):
+        """
+        Initialize the TopicsPotentialCollaborations class.
+
+        :param entity_id: The OpenAlex ID for the secondary entity.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
+            collaborations. If a work is present in several entities, it is counted only once.
+        :type secondary_entity_id: str | list[str] | None
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(entity_id, year, **kwargs)
+        if secondary_entity_id is None:
+            raise ValueError("secondary_entity_id must be provided")
+        if isinstance(secondary_entity_id, str):
+            self.secondary_entity_id = [secondary_entity_id]
+        else:
+            self.secondary_entity_id = secondary_entity_id
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about topics of collaborations from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            self.data = {}
+            self.data_categories = {}
+            w1 = WorksData(
+                extra_filters = {
+                    self.entity_openalex_filter_field: self.entity_id,
+                    "publication_year": self.year
+                }
+            ).entities_df
+            w2 = pd.DataFrame()
+            for entity in self.secondary_entity_id:
+                w = WorksData(
+                    extra_filters={
+                        self.entity_openalex_filter_field: entity,
+                        "publication_year": self.year
+                    }
+                ).entities_df
+                w2 = pd.concat([w2, w], ignore_index=True)
+            # create topic count dicts:
+            w1.set_index("id", inplace=True)
+            w2.set_index("id", inplace=True)
+            wc = w1.loc[w1.index.isin(w2.index)] # work in common
+            w_tmp = w1.loc[~w1.index.isin(w2.index)]
+            w2 = w2.loc[~w2.index.isin(w1.index)] # works from the secondary entities that are not in the main entity
+            w1 = w_tmp # works from the main entity that are not in secondary entities
+            topics_info = {} # a dict to store the topics by their ids
+            topics_main = {} # a dict to store the topics count from the main entity
+            topics_secondary = {} # a dict to store the topics count from the secondary entities
+            topics_collaborations = {} # a dict to store the topics count from the collaborations
+            for index, row in w1.iterrows():
+                for topic in row["topics"]:
+                    topic_id = topic["id"]
+                    topics_info[topic_id] = topic
+                    topics_main[topic_id] = topics_main.get(topic_id, 0) + 1
+            for index, row in w2.iterrows():
+                for topic in row["topics"]:
+                    topic_id = topic["id"]
+                    topics_info[topic_id] = topic
+                    topics_secondary[topic_id] = topics_secondary.get(topic_id, 0) + 1
+            for index, row in wc.iterrows():
+                for topic in row["topics"]:
+                    topic_id = topic["id"]
+                    topics_collaborations[topic_id] = topics_collaborations.get(topic_id, 0) + 1
+            # calculate topic scores:
+            topic_scores = {}
+            for topic_id in topics_main.keys():
+                collab_rate = topics_collaborations.get(topic_id, 0) / topics_main[topic_id]
+                score = topics_main[topic_id] * topics_secondary.get(topic_id, 0) * (1 - collab_rate)
+                topic_scores[topic_id] = score
+            # generate data for plot:
+            for topic_id in topic_scores:
+                name = topics_info[topic_id]["display_name"]
+                self.data[name] = topic_scores[topic_id]
+                self.data_categories[name] = topics_info[topic_id]["domain"]["display_name"]
             self.n_entities_found = len(self.data)
             # sort values
             self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
