@@ -1,13 +1,13 @@
 from dibisoplot.pubpart.pubpart import PubPart
-from dibisoplot.pubpart.pubpart import Collaborations
-from dibisoplot.pubpart.pubpart import Topics
+from dibisoplot.pubpart.pubpart import PubInstitutions
+from dibisoplot.pubpart.pubpart import PubTopics
 from dibisoplot.pubpart.pubpart import TopicsCollaborations
 from dibisoplot.pubpart.pubpart import TopicsPotentialCollaborations
 
 __all__ = [
     "PubPart",
-    "Collaborations",
-    "Topics",
+    "PubInstitutions",
+    "PubTopics",
     "TopicsCollaborations",
     "TopicsPotentialCollaborations",
 ]

@@ -29,9 +29,11 @@ class PubPart(Dibisoplot):
     This class is not designed to be called directly but rather to provide general methods to the different plot types.
 
     :cvar default_margin: Default margins for plots.
+    :cvar orientation: Orientation for plots ('h' for horizontal).
     """
 
     default_margin = dict(l=30, r=30, b=30, t=30, pad=4)
+    orientation = 'h'
 
     def __init__(
             self,
@@ -121,14 +123,10 @@ class PubPart(Dibisoplot):
         self.entity_openalex_filter_field = entity_openalex_filter_field
 
 
-class Collaborations(PubPart):
+class PubInstitutions(PubPart):
     """
-    A class to fetch and plot data about collaborations.
-
-    :cvar orientation: Orientation for plots ('h' for horizontal).
+    A class to fetch and plot data about institutions in publications.
     """
-
-    orientation = 'h'
 
     def __init__(
             self,
@@ -142,7 +140,7 @@ class Collaborations(PubPart):
             **kwargs
     ):
         """
-        Initialize the Collaborations class.
+        Initialize the PubInstitutions class.
 
         :param entity_id: The OpenAlex ID for the secondary entity.
         :type entity_id: str
@@ -241,14 +239,10 @@ class Collaborations(PubPart):
             return {"info": self._("Error")}
 
 
-class Topics(PubPart):
+class PubTopics(PubPart):
     """
-    A class to fetch and plot data about openalex topics.
-
-    :cvar orientation: Orientation for plots ('h' for horizontal).
+    A class to fetch and plot data about openalex topics in publications.
     """
-
-    orientation = 'h'
 
     def __init__(
             self,
@@ -257,7 +251,7 @@ class Topics(PubPart):
             **kwargs
     ):
         """
-        Initialize the Topics class.
+        Initialize the PubTopics class.
 
         :param entity_id: The OpenAlex ID for the secondary entity.
         :type entity_id: str
@@ -305,111 +299,10 @@ class Topics(PubPart):
             return {"info": self._("Error")}
 
 
-class TopicsCollaborations(PubPart):
+class Collaborations(PubPart):
     """
-    A class to fetch and plot data about openalex topics of collaborations.
-
-    :cvar orientation: Orientation for plots ('h' for horizontal).
+    A generic class for fetching and plotting data about collaborations.
     """
-
-    orientation = 'h'
-
-    def __init__(
-            self,
-            entity_id: str,
-            year: int | None = None,
-            secondary_entity_id: str | list[str] | None = None,
-            secondary_entity_filter_field: str | list[str] | None = None,
-            **kwargs
-    ):
-        """
-        Initialize the TopicsCollaborations class.
-
-        :param entity_id: The OpenAlex ID for the secondary entity.
-        :type entity_id: str
-        :param year: The year for which to fetch data. If None, uses the current year.
-        :type year: int | none, optional
-        :param secondary_entity_id: The OpenAlex ID for the secondary entity or entities to analyze the topics of
-            collaborations. If a work is present in several entities, it is counted only once.
-        :type secondary_entity_id: str | list[str] | None
-        :param secondary_entity_filter_field: The OpenAlex filter field for the secondary entity or entities. If None,
-            use the same as for the main entity. If a single string is provided, it is used for all secondary entities.
-        :type secondary_entity_filter_field: str | list[str] | None, optional
-        :param kwargs: Additional keyword arguments.
-        """
-        super().__init__(entity_id, year, **kwargs)
-        if secondary_entity_id is None:
-            raise ValueError("secondary_entity_id must be provided")
-        if isinstance(secondary_entity_id, str):
-            self.secondary_entity_id = [secondary_entity_id]
-        else:
-            self.secondary_entity_id = secondary_entity_id
-        if secondary_entity_filter_field is None:
-            self.secondary_entity_filter_field = [self.entity_openalex_filter_field] * len(self.secondary_entity_id)
-        elif isinstance(secondary_entity_filter_field, str):
-            self.secondary_entity_filter_field = [secondary_entity_filter_field] * len(self.secondary_entity_id)
-        else:
-            self.secondary_entity_filter_field = secondary_entity_filter_field
-
-    def fetch_data(self) -> dict[str, Any]:
-        """
-        Fetch data about topics of collaborations from OpenAlex
-
-        :return: The info about the fetched data.
-        :rtype: dict[str, Any]
-        """
-        try:
-            self.data = {}
-            self.data_categories = {}
-            w1 = WorksData(
-                extra_filters = {
-                    self.entity_openalex_filter_field: self.entity_id,
-                    "publication_year": self.year
-                }
-            ).entities_df
-            w2 = pd.DataFrame()
-            for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
-                w = WorksData(
-                    extra_filters={
-                        entity_filter: entity,
-                        "publication_year": self.year
-                    }
-                ).entities_df
-                w2 = pd.concat([w2, w], ignore_index=True)
-
-            w1.set_index("id", inplace=True)
-            w2.set_index("id", inplace=True)
-            wc = w1.loc[w1.index.isin(w2.index)]
-            for index, row in wc.iterrows():
-                for topic in row["topics"]:
-                    name = topic["display_name"]
-                    self.data[name] = self.data.get(name, 0) + 1
-                    self.data_categories[name] = topic["domain"]["display_name"]
-            self.n_entities_found = len(self.data)
-            # sort values
-            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
-            if not self.data:
-                self.data_status = DataStatus.NO_DATA
-            else:
-                self.data_status = DataStatus.OK
-            self.generate_plot_info()
-            return {"info": self.info}
-        except Exception as e:
-            print(f"Error fetching or formatting data: {e}")
-            traceback.print_exc()
-            self.data = None
-            self.data_status = DataStatus.ERROR
-            return {"info": self._("Error")}
-
-
-class TopicsPotentialCollaborations(PubPart):
-    """
-    A class to fetch and plot data about openalex topics of potential collaborations.
-
-    :cvar orientation: Orientation for plots ('h' for horizontal).
-    """
-
-    orientation = 'h'
 
     def __init__(
             self,
@@ -448,6 +341,37 @@ class TopicsPotentialCollaborations(PubPart):
         else:
             self.secondary_entity_filter_field = secondary_entity_filter_field
 
+
+    def fetch_collab_data(self):
+        self.data = {}
+        self.data_categories = {}
+        w1 = WorksData(
+            extra_filters={
+                self.entity_openalex_filter_field: self.entity_id,
+                "publication_year": self.year
+            }
+        ).entities_df
+        w2 = pd.DataFrame()
+        for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
+            w = WorksData(
+                extra_filters={
+                    entity_filter: entity,
+                    "publication_year": self.year
+                }
+            ).entities_df
+            w2 = pd.concat([w2, w], ignore_index=True)
+        # create topic count dicts:
+        w1.set_index("id", inplace=True)
+        w2.set_index("id", inplace=True)
+        wc = w1.loc[w1.index.isin(w2.index)]  # work in common
+        return w1, w2, wc
+
+
+class TopicsCollaborations(Collaborations):
+    """
+    A class to fetch and plot data about openalex topics of collaborations.
+    """
+
     def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about topics of collaborations from OpenAlex
@@ -456,27 +380,43 @@ class TopicsPotentialCollaborations(PubPart):
         :rtype: dict[str, Any]
         """
         try:
-            self.data = {}
-            self.data_categories = {}
-            w1 = WorksData(
-                extra_filters = {
-                    self.entity_openalex_filter_field: self.entity_id,
-                    "publication_year": self.year
-                }
-            ).entities_df
-            w2 = pd.DataFrame()
-            for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
-                w = WorksData(
-                    extra_filters={
-                        entity_filter: entity,
-                        "publication_year": self.year
-                    }
-                ).entities_df
-                w2 = pd.concat([w2, w], ignore_index=True)
-            # create topic count dicts:
-            w1.set_index("id", inplace=True)
-            w2.set_index("id", inplace=True)
-            wc = w1.loc[w1.index.isin(w2.index)] # work in common
+            w1, w2, wc = self.fetch_collab_data()
+            for index, row in wc.iterrows():
+                for topic in row["topics"]:
+                    name = topic["display_name"]
+                    self.data[name] = self.data.get(name, 0) + 1
+                    self.data_categories[name] = topic["domain"]["display_name"]
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
+
+
+class TopicsPotentialCollaborations(Collaborations):
+    """
+    A class to fetch and plot data about openalex topics of potential collaborations.
+    """
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about topics of collaborations from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            w1, w2, wc = self.fetch_collab_data()
             w_tmp = w1.loc[~w1.index.isin(w2.index)]
             w2 = w2.loc[~w2.index.isin(w1.index)] # works from the secondary entities that are not in the main entity
             w1 = w_tmp # works from the main entity that are not in secondary entities
