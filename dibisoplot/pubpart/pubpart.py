@@ -1,16 +1,11 @@
 from typing import Any
-import math
 import logging
-import warnings
-from collections import defaultdict
 import traceback
-import re
 
-from openalex_analysis.data import InstitutionsData, WorksData
+from openalex_analysis.data import WorksData
 from openalex_analysis.data import config as openalex_analysis_config
 import pandas as pd
-from pyalex import Institutions, Works
-# from openalex_analysis.data import WorksData
+from pyalex import Institutions
 
 from dibisoplot.utils import format_structure_name
 from dibisoplot.dibisoplot import DataStatus, Dibisoplot
@@ -19,7 +14,6 @@ from dibisoplot.dibisoplot import DataStatus, Dibisoplot
 import plotly.io as pio
 pio.kaleido.scope.mathjax = None
 
-# openalex_analysis_config.disable_tqdm_loading_bar = True
 openalex_analysis_config.n_max_entities = 1e6
 
 # catch useless warning logs, e.g.:
