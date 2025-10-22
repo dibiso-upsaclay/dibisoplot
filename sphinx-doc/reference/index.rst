@@ -34,8 +34,8 @@ utils
 
 .. currentmodule:: dibisoplot.dibisoplot
 
-DiBISO plot
------------
+dibisoplot
+----------
 
 .. autosummary::
 
@@ -88,7 +88,6 @@ BiSO
    OpenAccessWorks.get_figure
    PrivateSectorCollaborations.__init__
    PrivateSectorCollaborations.fetch_data
-   WorksBibtex.__init__
    WorksBibtex.fetch_data
    WorksBibtex.get_figure
    WorksType.__init__
