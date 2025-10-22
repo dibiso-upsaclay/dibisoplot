@@ -45,7 +45,7 @@ ANR Projects
     from dibisoplot.biso import AnrProjects
     
     anr_projects = AnrProjects(
-        lab = "SUP_SONDRA",
+        entity_id="SUP_SONDRA",
         year = 2023,
     )
     
@@ -80,7 +80,7 @@ Chapters
     from dibisoplot.biso import Chapters
     
     chapters = Chapters(
-        lab = "IEDP",
+        entity_id="IEDP",
         year = "2023",
     )
     
@@ -96,7 +96,7 @@ Collaboration Map
     from dibisoplot.biso import CollaborationMap
     
     collab_map = CollaborationMap(
-        lab = "LISN",
+        entity_id="LISN",
         year = 2023,
         countries_to_ignore = ["France"],
     )
@@ -132,7 +132,7 @@ Collaboration Names
     from dibisoplot.biso import CollaborationNames
     
     collabs = CollaborationNames(
-        lab = "LISN",
+        entity_id="LISN",
         year = 2023,
         countries_to_exclude = ['fr'],
     )
@@ -168,7 +168,7 @@ Conferences
     from dibisoplot.biso import Conferences
     
     conf = Conferences(
-        lab = "LGI",
+        entity_id="LGI",
         year = 2023,
     )
     
@@ -203,7 +203,7 @@ European Projects
     from dibisoplot.biso import EuropeanProjects
     
     eu_projects = EuropeanProjects(
-        lab = "UMPHY",
+        entity_id="UMPHY",
         year = 2023,
     )
     
@@ -238,7 +238,7 @@ Journals
     from dibisoplot.biso import Journals
     
     journals = Journals(
-        lab = "EM2C",
+        entity_id="EM2C",
         year = 2023,
         **scanr_config,
     )
@@ -255,7 +255,7 @@ Journals in HAL
     from dibisoplot.biso import JournalsHal
     
     journals_hal = JournalsHal(
-        lab = "EM2C",
+        entity_id="EM2C",
         year = 2023,
     )
     
@@ -290,7 +290,7 @@ Open Access Works
     from dibisoplot.biso import OpenAccessWorks
     
     oa_works = OpenAccessWorks(
-        lab = "EM2C",
+        entity_id="EM2C",
         year = 2023,
     )
     
@@ -325,7 +325,7 @@ Private Sector Collaborations
     from dibisoplot.biso import PrivateSectorCollaborations
     
     private_collabs = PrivateSectorCollaborations(
-        lab = "LGI",
+        entity_id="LGI",
         year = 2023,
         **scanr_config,
     )
@@ -353,6 +353,23 @@ Private Sector Collaborations
 
 .. container::
 
+Works in BibTeX format
+----------------------
+
+.. code:: ipython3
+
+    from dibisoplot.biso import WorksBibtex
+    
+    works = WorksBibtex(
+        entity_id="EM2C",
+        year = 2023,
+    )
+    
+    works_latex = works.get_figure()
+    
+    # print the first lines of the bibtex string
+    print(works_latex[:2000] + "...")
+
 Works Type
 ----------
 
@@ -361,7 +378,7 @@ Works Type
     from dibisoplot.biso import WorksType
     
     works_type = WorksType(
-        lab = "LGI",
+        entity_id="LGI",
         year = 2023,
     )
     
