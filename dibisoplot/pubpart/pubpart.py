@@ -245,24 +245,6 @@ class PubTopics(PubPart):
     A class to fetch and plot data about openalex topics in publications.
     """
 
-    def __init__(
-            self,
-            entity_id: str,
-            year: int | None = None,
-            **kwargs
-    ):
-        """
-        Initialize the PubTopics class.
-
-        :param entity_id: The OpenAlex ID for the secondary entity.
-        :type entity_id: str
-        :param year: The year for which to fetch data. If None, uses the current year.
-        :type year: int | none, optional
-        :param kwargs: Additional keyword arguments.
-        """
-        super().__init__(entity_id, year, **kwargs)
-
-
     def fetch_data(self) -> dict[str, Any]:
         """
         Fetch data about topics from OpenAlex
@@ -272,7 +254,6 @@ class PubTopics(PubPart):
         """
         try:
             self.data = {}
-            # entities to exclude
             w = WorksData(
                 extra_filters = {
                     self.entity_openalex_filter_field: self.entity_id,
@@ -344,27 +325,84 @@ class Collaborations(PubPart):
 
 
     def fetch_collab_data(self):
+        """
+        Fetch data for plots about collaborations.
+        """
         self.data = {}
-        w1 = WorksData(
-            extra_filters={
-                self.entity_openalex_filter_field: self.entity_id,
-                "publication_year": self.year
-            }
-        ).entities_df
-        w2 = pd.DataFrame()
-        for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
+        # to reduce memory consumption when loading the DataFrames and optimize cache uses, load the data year by year:
+        if isinstance(self.year, int):
+            years = [self.year]
+        elif isinstance(self.year, str) and self.year.isnumeric():
+            years = [int(self.year)]
+        else:
+            years = [year for year in range(int(self.year.split("-")[0]), int(self.year.split("-")[1]) + 1)]
+        w1 = pd.DataFrame()
+        for year in years:
             w = WorksData(
                 extra_filters={
-                    entity_filter: entity,
-                    "publication_year": self.year
+                    self.entity_openalex_filter_field: self.entity_id,
+                    "publication_year": year
                 }
             ).entities_df
-            w2 = pd.concat([w2, w], ignore_index=True)
+            w1 = pd.concat([w1, w], ignore_index=True)
+        w2 = pd.DataFrame()
+        for year in years:
+            for entity, entity_filter in zip(self.secondary_entity_id, self.secondary_entity_filter_field):
+                w = WorksData(
+                    extra_filters={
+                        entity_filter: entity,
+                        "publication_year": year
+                    }
+                ).entities_df
+                w2 = pd.concat([w2, w], ignore_index=True)
         # create topic count dicts:
         w1.set_index("id", inplace=True)
         w2.set_index("id", inplace=True)
         wc = w1.loc[w1.index.isin(w2.index)]  # work in common
         return w1, w2, wc
+
+
+class InstitutionsLineageCollaborations(Collaborations):
+    """
+    A class to fetch and plot data about institutions in the lineage in co-publications.
+    """
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about institutions in the lineage from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            self.data = {}
+            inst_id_in_lineage = [e["id"] for e in Institutions()[self.entity_id]["associated_institutions"]]
+            w1, w2, wc = self.fetch_collab_data()
+            for index, row in wc.iterrows():
+                # dict of collabs in the work (count each institution only once per work)
+                collabs = {}
+                for authorship in row["authorships"]:
+                    for institution in authorship["institutions"]:
+                        if institution["id"] in inst_id_in_lineage:
+                            name = institution["display_name"]
+                            collabs[name] = 1
+                for collab in collabs.keys():
+                    self.data[collab] = self.data.get(collab, 0) + 1
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
 
 
 class TopicsCollaborations(Collaborations):
