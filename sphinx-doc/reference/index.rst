@@ -4,38 +4,17 @@ Reference
 .. toctree::
    :maxdepth: 1
 
+   dibisoplot
    biso
    pubpart
+   translation
+   utils
 
-
-.. currentmodule:: dibisoplot.translation
-
-translation
------------
-
-.. autosummary::
-
-   get_translator
-
-
-.. currentmodule:: dibisoplot.utils
-
-utils
------
-
-.. autosummary::
-
-   get_hal_doc_type_name
-   get_empty_plot_with_message
-   get_empty_latex_with_message
-   get_bar_width
-   format_structure_name
-
-
-.. currentmodule:: dibisoplot.dibisoplot
 
 dibisoplot
 ----------
+
+.. currentmodule:: dibisoplot.dibisoplot
 
 .. autosummary::
 
@@ -51,10 +30,10 @@ dibisoplot
    Dibisoplot.get_figure
 
 
-.. currentmodule:: dibisoplot.biso
-
 BiSO
 ----
+
+.. currentmodule:: dibisoplot.biso
 
 .. autosummary::
 
@@ -93,10 +72,11 @@ BiSO
    WorksType.__init__
    WorksType.fetch_data
 
-.. currentmodule:: dibisoplot.pubpart
 
 PubPart
 -------
+
+.. currentmodule:: dibisoplot.pubpart
 
 .. autosummary::
 
@@ -111,3 +91,27 @@ PubPart
    TopicsPotentialCollaborations.fetch_data
    WorksCollaborations.__init__
    WorksCollaborations.fetch_data
+
+
+translation
+-----------
+
+.. currentmodule:: dibisoplot.translation
+
+.. autosummary::
+
+   get_translator
+
+
+utils
+-----
+
+.. currentmodule:: dibisoplot.utils
+
+.. autosummary::
+
+   get_hal_doc_type_name
+   get_empty_plot_with_message
+   get_empty_latex_with_message
+   get_bar_width
+   format_structure_name
