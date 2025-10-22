@@ -30,7 +30,7 @@ dibisoplot
    Dibisoplot.get_figure
 
 
-BiSO
+Biso
 ----
 
 .. currentmodule:: dibisoplot.biso
