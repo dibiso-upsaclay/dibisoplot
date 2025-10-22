@@ -1,11 +1,11 @@
 Settings
 ========
 
-To generate plots, provide a HAL collection identifier.
+To generate plots, provide a HAL collection identifier for the BiSO or an OpenAlex ID for the PubPart.
 If the ``year`` is not specified, the current year is used.
 
-Basic example
--------------
+BiSO example
+------------
 
 To plot the top conferences attended by Université Paris-Saclay researchers:
 
@@ -14,7 +14,7 @@ To plot the top conferences attended by Université Paris-Saclay researchers:
     from dibisoplot.biso import Conferences
 
     conf = Conferences(
-        lab = "UNIV-PARIS-SACLAY"
+        entity_id = "UNIV-PARIS-SACLAY"
     )
 
     conf_fig = conf.get_figure()
@@ -23,8 +23,8 @@ To plot the top conferences attended by Université Paris-Saclay researchers:
 
 
 
-Plots with scanR
-----------------
+BiSO plots with scanR
+---------------------
 
 For some plots, you will need to provide API credentials to access to the scanR API :
 
@@ -33,7 +33,7 @@ For some plots, you will need to provide API credentials to access to the scanR 
     from dibisoplot.biso import PrivateSectorCollaborations
 
     private_collabs = PrivateSectorCollaborations(
-        lab = "LGI",
+        entity_id = "LGI",
         year = 2023,
         scanr_api_password = "",
         scanr_api_url = "",
@@ -48,14 +48,15 @@ For some plots, you will need to provide API credentials to access to the scanR 
 Customize the layout
 --------------------
 
-You can customize the plot's layout by using arguments available in the ``BiSO`` class or by directly applying layout to the plotly figure:
+You can customize the plot's layout by using arguments available in the class or by directly applying layout to the
+plotly figure:
 
 .. code-block:: python
 
     from dibisoplot.biso import Conferences
 
     conf = Conferences(
-        lab = "UNIV-PARIS-SACLAY",
+        entity_id = "UNIV-PARIS-SACLAY",
         max_plotted_entities = 10,
         title = "Top conferences",
         main_color = "green"
@@ -72,4 +73,4 @@ You can customize the plot's layout by using arguments available in the ``BiSO``
     conf_fig.show()
 
 
-For a full list of available arguments, refer to the `Biso class reference <reference/biso.html#dibisoplot.biso.Biso>`_ at the :py:meth:`~dibisoplot.biso.Biso.__init__` section.
+For a full list of available arguments, refer to the class reference and __init__ arguments.
