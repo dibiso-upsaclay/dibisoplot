@@ -5,6 +5,50 @@ Reference
    :maxdepth: 1
 
    biso
+   pubpart
+
+
+.. currentmodule:: dibisoplot.translation
+
+translation
+-----------
+
+.. autosummary::
+
+   get_translator
+
+
+.. currentmodule:: dibisoplot.utils
+
+utils
+-----
+
+.. autosummary::
+
+   get_hal_doc_type_name
+   get_empty_plot_with_message
+   get_empty_latex_with_message
+   get_bar_width
+   format_structure_name
+
+
+.. currentmodule:: dibisoplot.dibisoplot
+
+DiBISO plot
+-----------
+
+.. autosummary::
+
+   DataStatus
+   Dibisoplot
+   Dibisoplot.__init__
+   Dibisoplot.generate_plot_info
+   Dibisoplot.get_no_data_plot
+   Dibisoplot.get_error_plot
+   Dibisoplot.get_no_data_latex
+   Dibisoplot.get_error_latex
+   Dibisoplot.dataframe_to_longtable
+   Dibisoplot.get_figure
 
 
 .. currentmodule:: dibisoplot.biso
@@ -14,23 +58,12 @@ BiSO
 
 .. autosummary::
 
-   DataStatus
-   get_hal_doc_type_name
-   get_empty_plot_with_message
-   get_empty_latex_with_message
    Biso.__init__
-   Biso.generate_plot_info
-   get_no_data_plot
-   get_error_plot
-   get_no_data_latex
-   get_error_latex
-   dataframe_to_longtable
-   get_all_ids_with_cursor
-   connect_to_elasticsearch
-   get_works_from_es_index_from_id
-   get_works_from_es_index_from_id_and_private_sector
-   get_works_from_es_index_from_id_by_chunk
-   Biso.get_figure
+   Biso.get_all_ids_with_cursor
+   Biso.connect_to_elasticsearch
+   Biso.get_works_from_es_index_from_id
+   Biso.get_works_from_es_index_from_id_and_private_sector
+   Biso.get_works_from_es_index_from_id_by_chunk
    AnrProjects.__init__
    AnrProjects.fetch_data
    Chapters.__init__
@@ -60,3 +93,22 @@ BiSO
    WorksBibtex.get_figure
    WorksType.__init__
    WorksType.fetch_data
+
+.. currentmodule:: dibisoplot.pubpart
+
+PubPart
+-------
+
+.. autosummary::
+
+   PubPart.__init__
+   PubInstitutions.__init__
+   PubInstitutions.fetch_data
+   PubTopics.fetch_data
+   Collaborations.__init__
+   Collaborations.fetch_collab_data
+   InstitutionsLineageCollaborations.fetch_data
+   TopicsCollaborations.fetch_data
+   TopicsPotentialCollaborations.fetch_data
+   WorksCollaborations.__init__
+   WorksCollaborations.fetch_data
