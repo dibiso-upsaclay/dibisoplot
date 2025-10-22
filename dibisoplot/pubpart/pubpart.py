@@ -6,6 +6,7 @@ from openalex_analysis.data import WorksData
 from openalex_analysis.data import config as openalex_analysis_config
 import pandas as pd
 from pyalex import Institutions
+from tests.doc_test.basic_doc.conf import author
 
 from dibisoplot.utils import format_structure_name
 from dibisoplot.dibisoplot import DataStatus, Dibisoplot
@@ -344,7 +345,6 @@ class Collaborations(PubPart):
 
     def fetch_collab_data(self):
         self.data = {}
-        self.data_categories = {}
         w1 = WorksData(
             extra_filters={
                 self.entity_openalex_filter_field: self.entity_id,
@@ -380,6 +380,7 @@ class TopicsCollaborations(Collaborations):
         :rtype: dict[str, Any]
         """
         try:
+            self.data_categories = {}
             w1, w2, wc = self.fetch_collab_data()
             for index, row in wc.iterrows():
                 for topic in row["topics"]:
@@ -416,6 +417,7 @@ class TopicsPotentialCollaborations(Collaborations):
         :rtype: dict[str, Any]
         """
         try:
+            self.data_categories = {}
             w1, w2, wc = self.fetch_collab_data()
             w_tmp = w1.loc[~w1.index.isin(w2.index)]
             w2 = w2.loc[~w2.index.isin(w1.index)] # works from the secondary entities that are not in the main entity
@@ -449,6 +451,81 @@ class TopicsPotentialCollaborations(Collaborations):
                 name = topics_info[topic_id]["display_name"]
                 self.data[name] = topic_scores[topic_id]
                 self.data_categories[name] = topics_info[topic_id]["domain"]["display_name"]
+            self.n_entities_found = len(self.data)
+            # sort values
+            self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
+            if not self.data:
+                self.data_status = DataStatus.NO_DATA
+            else:
+                self.data_status = DataStatus.OK
+            self.generate_plot_info()
+            return {"info": self.info}
+        except Exception as e:
+            print(f"Error fetching or formatting data: {e}")
+            traceback.print_exc()
+            self.data = None
+            self.data_status = DataStatus.ERROR
+            return {"info": self._("Error")}
+
+
+class WorksCollaborations(Collaborations):
+    """
+    A class to fetch and plot data about co-publications.
+    By default, works are sorted by their citation_normalized_percentile value on OpenAlex, see documentation:
+    https://docs.openalex.org/api-entities/works/work-object#citation_normalized_percentile
+    Otherwise, it is possible to sort by the cited_by_count.
+
+    :cvar default_margin: Default margins for plots.
+    """
+
+    default_margin = dict(l=30, r=45, b=30, t=30, pad=4)
+
+    def __init__(
+            self,
+            entity_id: str,
+            year: int | None = None,
+            metric: str = "citation_normalized_percentile",
+            **kwargs
+    ):
+        """
+        Initialize the WorksCollaborations class.
+
+        :param entity_id: The OpenAlex ID for the secondary entity.
+        :type entity_id: str
+        :param year: The year for which to fetch data. If None, uses the current year.
+        :type year: int | none, optional
+        :param metric: The metric to use for sorting the works. Default to "citation_normalized_percentile".
+           Can be "cited_by_count" or "citation_normalized_percentile".
+        :type metric: str, optional
+        :param kwargs: Additional keyword arguments.
+        """
+        super().__init__(entity_id, year, **kwargs)
+        self.metric = metric
+
+    def fetch_data(self) -> dict[str, Any]:
+        """
+        Fetch data about co-publications from OpenAlex
+
+        :return: The info about the fetched data.
+        :rtype: dict[str, Any]
+        """
+        try:
+            w1, w2, wc = self.fetch_collab_data()
+            for index, row in wc.iterrows():
+                if len(row["authorships"]) > 1:
+                    author_name = row["authorships"][0]["author"]["display_name"] + " et al."
+                elif len(row["authorships"]) == 1:
+                    author_name = row["authorships"][0]["author"]["display_name"]
+                else:
+                    author_name = ""
+                name = f"{author_name} ({row["publication_year"]}): {row["display_name"]}"
+                if len(name) > 100:
+                    name = name[:100] + "..."
+                val = row[self.metric]
+                if self.metric == "cited_by_count":
+                    self.data[name] = val
+                else:
+                    self.data[name] = val["value"] if val is not None else 0
             self.n_entities_found = len(self.data)
             # sort values
             self.data = {k: v for k, v in sorted(self.data.items(), key=lambda item: item[1])}
