@@ -11,6 +11,7 @@ pip install dibisoplot
 The library contains the following submodules:
 
   - `biso`: plot data for the BiSO (Open-Science Report)
+  - `pubpart`: plot data about publications and partnerships
 
 
 Homepage: https://pypi.org/project/dibisoplot/
@@ -19,6 +20,8 @@ Documentation: https://dibiso-upsaclay.github.io/dibisoplot/
 
 Repository URL: https://github.com/dibiso-upsaclay/dibisoplot
 
+
+## About the BiSO
 
 The BiSO (Bilan Science Ouverte - Open Science Report) is an annual report produced for each research laboratory under 
 the responsibility of the Open Science teams (DiBISO) at Université Paris-Saclay. 
@@ -29,6 +32,10 @@ Primarily intended for the laboratories under our scope, the report supports the
 The code and template are shared under open-source licenses, allowing other institutions to reuse and adapt the 
 methodology.
 
+## About the Publications and Partnerships
+
+This submodule uses data from [OpenAlex](https://openalex.org/) to make plots about publication topics, institutions, and citations, as 
+well as common publication topics and potential collaboration topics with other institutions.
 
 Romain THOMAS 2025  
 Department of Libraries, Information and Open Science (DiBISO)  
