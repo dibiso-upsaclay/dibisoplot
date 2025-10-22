@@ -6,7 +6,6 @@ from openalex_analysis.data import WorksData
 from openalex_analysis.data import config as openalex_analysis_config
 import pandas as pd
 from pyalex import Institutions
-from tests.doc_test.basic_doc.conf import author
 
 from dibisoplot.utils import format_structure_name
 from dibisoplot.dibisoplot import DataStatus, Dibisoplot
