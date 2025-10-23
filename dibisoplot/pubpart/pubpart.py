@@ -71,7 +71,8 @@ class PubPart(Dibisoplot):
         :type dynamic_min_height: int | float, optional
         :param dynamic_height_per_bar: Height per bar for plots when the height is set dynamically.
         :type dynamic_height_per_bar: int | float, optional
-        :param entity_openalex_filter_field: Field to filter on in the OpenAlex API. Default to 'institutions.id'.
+        :param entity_openalex_filter_field: Field to filter on in the OpenAlex API.
+            Default to 'authorships.institutions.id'.
             The list of possible values can be found in the OpenAlex documentation:
             https://docs.openalex.org/api-entities/works/filter-works
         :type entity_openalex_filter_field: str, optional
