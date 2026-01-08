@@ -2,6 +2,8 @@
 
 A Python library for plotting bibliometric research data, developed at the [DiBISO](https://www.bibliotheques.universite-paris-saclay.fr/en/department-libraries-information-and-open-science-dibiso-and-its-missions).
 
+For more details about this project, you can read our [technical report](https://universite-paris-saclay.hal.science/hal-05336463).
+
 Install with:
 
 ```bash
@@ -19,6 +21,8 @@ Homepage: https://pypi.org/project/dibisoplot/
 Documentation: https://dibiso-upsaclay.github.io/dibisoplot/
 
 Repository URL: https://github.com/dibiso-upsaclay/dibisoplot
+
+Technical report: https://universite-paris-saclay.hal.science/hal-05336463
 
 
 ## About the BiSO
